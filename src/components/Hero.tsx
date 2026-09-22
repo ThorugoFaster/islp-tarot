@@ -1,6 +1,6 @@
 import { ChevronDown, Moon, Sparkles } from 'lucide-react';
 
-const cartomanteImg = '/images/islp-tarot-perfil.png';
+const cartomanteImg = `${import.meta.env.BASE_URL}images/islp-tarot-perfil.png`;
 
 export function Hero() {
   const scrollToConsultas = () => {
