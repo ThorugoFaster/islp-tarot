@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import {
   Check,
   Loader2,
+  MessageCircle,
   ShoppingBag,
   Sparkles,
 } from 'lucide-react';
+import { buildWhatsAppLink } from '@/data/services';
 import { useReveal } from '@/hooks/useReveal';
 import { supabase } from '@/lib/supabase';
 import { addToCart } from '@/hooks/useCart';
@@ -26,6 +28,7 @@ export function Consultations() {
   const [consultations, setConsultations] = useState<
     PublicService[]
   >([]);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -197,6 +200,7 @@ function ConsultationCard({
           {service.descricao}
         </p>
 
+        {/* ADICIONAR AO CARRINHO */}
         <button
           type="button"
           onClick={handleAddToCart}
@@ -212,6 +216,7 @@ function ConsultationCard({
                 className="w-4 h-4"
                 strokeWidth={2}
               />
+
               ADICIONADO
             </>
           ) : (
@@ -220,10 +225,29 @@ function ConsultationCard({
                 className="w-4 h-4"
                 strokeWidth={2}
               />
+
               ADICIONAR AO CARRINHO
             </>
           )}
         </button>
+
+        {/* WHATSAPP */}
+        <a
+          href={buildWhatsAppLink(
+            service.nome,
+            price
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex items-center justify-center gap-2 py-1.5 font-serif text-xs text-creme/45 transition-colors duration-300 hover:text-dourado-200"
+        >
+          <MessageCircle
+            className="w-3.5 h-3.5"
+            strokeWidth={1.5}
+          />
+
+          Prefiro agendar pelo WhatsApp
+        </a>
       </div>
     </div>
   );
