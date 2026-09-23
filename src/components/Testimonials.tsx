@@ -65,7 +65,7 @@ export function Testimonials() {
 
             {/* Texto real da avaliação */}
             <p className="font-serif text-[15px] text-creme/80 italic leading-[175%]">
-              “{testimonial.text}”
+              {testimonial.text}
             </p>
 
             <div className="flex items-center gap-2 mt-5">
