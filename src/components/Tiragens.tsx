@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
-  MessageCircle,
+  Check,
   Eye,
-  Sparkles,
   Loader2,
+  ShoppingBag,
+  Sparkles,
 } from 'lucide-react';
-import {
-  buildWhatsAppLink,
-  type Service,
-} from '@/data/services';
+import type { Service } from '@/data/services';
 import { useReveal } from '@/hooks/useReveal';
 import { ServiceModal } from './ServiceModal';
 import { supabase } from '@/lib/supabase';
+import { addToCart } from '@/hooks/useCart';
 
 type DatabaseService = {
   id: number;
@@ -25,10 +24,16 @@ type DatabaseService = {
 };
 
 export function Tiragens() {
-  const { ref, visible } = useReveal<HTMLDivElement>();
+  const { ref, visible } =
+    useReveal<HTMLDivElement>();
 
-  const [tiragens, setTiragens] = useState<DatabaseService[]>([]);
-  const [selected, setSelected] = useState<Service | null>(null);
+  const [tiragens, setTiragens] = useState<
+    DatabaseService[]
+  >([]);
+
+  const [selected, setSelected] =
+    useState<Service | null>(null);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -136,6 +141,7 @@ export function Tiragens() {
             return (
               <TiragemCard
                 key={tiragem.id}
+                databaseService={tiragem}
                 service={service}
                 delay={i * 0.08}
                 onDetails={() =>
@@ -158,15 +164,35 @@ export function Tiragens() {
 }
 
 function TiragemCard({
+  databaseService,
   service,
   delay,
   onDetails,
 }: {
+  databaseService: DatabaseService;
   service: Service;
   delay: number;
   onDetails: () => void;
 }) {
-  const { ref, visible } = useReveal<HTMLDivElement>();
+  const { ref, visible } =
+    useReveal<HTMLDivElement>();
+
+  const [added, setAdded] = useState(false);
+
+  function handleAddToCart() {
+    addToCart({
+      id: databaseService.id,
+      nome: databaseService.nome,
+      preco: Number(databaseService.preco),
+      categoria: databaseService.categoria,
+    });
+
+    setAdded(true);
+
+    window.setTimeout(() => {
+      setAdded(false);
+    }, 1500);
+  }
 
   return (
     <div
@@ -202,38 +228,49 @@ function TiragemCard({
           {service.price}
         </span>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onDetails}
-            className="px-3 py-2 rounded-full border border-dourado-200/25 text-dourado-200/80 font-sans text-xs tracking-[0.05em] hover:border-dourado-200/50 hover:text-dourado-100 transition-all duration-300 active:scale-95"
-          >
-            <Eye
-              className="w-3.5 h-3.5 inline mr-1"
-              strokeWidth={1.5}
-            />
+        <button
+          type="button"
+          onClick={onDetails}
+          className="px-3 py-2 rounded-full border border-dourado-200/25 text-dourado-200/80 font-sans text-xs tracking-[0.05em] hover:border-dourado-200/50 hover:text-dourado-100 transition-all duration-300 active:scale-95"
+        >
+          <Eye
+            className="w-3.5 h-3.5 inline mr-1"
+            strokeWidth={1.5}
+          />
 
-            Ver detalhes
-          </button>
+          Ver detalhes
+        </button>
+      </div>
 
-          <a
-            href={buildWhatsAppLink(
-              service.name,
-              service.price
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 rounded-full bg-dourado-200/90 text-bordo-300 font-sans text-xs font-semibold tracking-[0.05em] hover:bg-dourado-100 transition-all duration-300 active:scale-95"
-          >
-            <MessageCircle
-              className="w-3.5 h-3.5 inline mr-1"
+      <button
+        type="button"
+        onClick={handleAddToCart}
+        className={`mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-full font-sans text-xs font-semibold tracking-[0.08em] transition-all duration-300 active:scale-[0.98] ${
+          added
+            ? 'border border-dourado-200/35 bg-dourado-200/10 text-dourado-200'
+            : 'bg-dourado-200/90 text-bordo-300 hover:bg-dourado-100'
+        }`}
+      >
+        {added ? (
+          <>
+            <Check
+              className="w-4 h-4"
               strokeWidth={2}
             />
 
-            Agendar
-          </a>
-        </div>
-      </div>
+            ADICIONADO
+          </>
+        ) : (
+          <>
+            <ShoppingBag
+              className="w-4 h-4"
+              strokeWidth={2}
+            />
+
+            ADICIONAR AO CARRINHO
+          </>
+        )}
+      </button>
     </div>
   );
 }
