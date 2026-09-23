@@ -57,10 +57,6 @@ export function CheckoutModal() {
     }).format(value);
   }
 
-  function closeCheckout() {
-    setOpen(false);
-  }
-
   function backToCart() {
     setOpen(false);
 
@@ -82,9 +78,7 @@ export function CheckoutModal() {
     >
       <div className="relative flex max-h-[95vh] w-full max-w-[480px] flex-col overflow-hidden rounded-t-[28px] border border-dourado-200/20 bg-bordo-300 shadow-2xl sm:rounded-[28px]">
 
-        {/* CABEÇALHO */}
         <div className="relative border-b border-dourado-200/15 px-5 pb-5 pt-6">
-
           <button
             type="button"
             onClick={backToCart}
@@ -99,7 +93,7 @@ export function CheckoutModal() {
 
           <button
             type="button"
-            onClick={closeCheckout}
+            onClick={() => setOpen(false)}
             aria-label="Fechar"
             className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-dourado-200/20 text-dourado-200/60 transition hover:bg-dourado-200/10"
           >
@@ -131,10 +125,7 @@ export function CheckoutModal() {
           </div>
         </div>
 
-        {/* CONTEÚDO */}
         <div className="flex-1 overflow-y-auto px-5 py-5">
-
-          {/* PROGRESSO */}
           <div className="mb-6 flex items-center justify-center gap-2">
             <div className="h-1.5 w-8 rounded-full bg-dourado-200" />
             <div className="h-1.5 w-8 rounded-full bg-dourado-200/15" />
@@ -142,7 +133,6 @@ export function CheckoutModal() {
             <div className="h-1.5 w-8 rounded-full bg-dourado-200/15" />
           </div>
 
-          {/* RESUMO */}
           <div className="rounded-2xl border border-dourado-200/15 bg-bordo-200/35 p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full border border-dourado-200/20">
@@ -205,85 +195,38 @@ export function CheckoutModal() {
             </div>
           </div>
 
-          {/* PRÓXIMAS ETAPAS */}
           <div className="mt-6">
             <p className="font-serif text-[10px] tracking-[0.15em] text-dourado-200/45 uppercase">
               Próximas etapas
             </p>
 
             <div className="mt-3 overflow-hidden rounded-2xl border border-dourado-200/10">
+              <Step
+                number="1"
+                title="Perguntas"
+                description="Informe o que deseja consultar."
+              />
 
-              <div className="flex items-center gap-3 border-b border-dourado-200/10 bg-bordo-200/25 px-4 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dourado-200/20 font-serif text-xs text-dourado-200">
-                  1
-                </div>
+              <Step
+                number="2"
+                title="Data e horário"
+                description="Escolha um horário disponível."
+                calendar
+              />
 
-                <div className="flex-1">
-                  <p className="font-serif text-sm text-creme/75">
-                    Perguntas
-                  </p>
-
-                  <p className="mt-0.5 font-serif text-[10px] text-creme/30">
-                    Informe o que deseja consultar.
-                  </p>
-                </div>
-
-                <ChevronRight
-                  className="h-4 w-4 text-dourado-200/25"
-                  strokeWidth={1.4}
-                />
-              </div>
-
-              <div className="flex items-center gap-3 border-b border-dourado-200/10 bg-bordo-200/25 px-4 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dourado-200/20 font-serif text-xs text-dourado-200">
-                  2
-                </div>
-
-                <div className="flex-1">
-                  <p className="font-serif text-sm text-creme/75">
-                    Data e horário
-                  </p>
-
-                  <p className="mt-0.5 font-serif text-[10px] text-creme/30">
-                    Escolha um horário disponível.
-                  </p>
-                </div>
-
-                <CalendarDays
-                  className="h-4 w-4 text-dourado-200/25"
-                  strokeWidth={1.4}
-                />
-              </div>
-
-              <div className="flex items-center gap-3 bg-bordo-200/25 px-4 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dourado-200/20 font-serif text-xs text-dourado-200">
-                  3
-                </div>
-
-                <div className="flex-1">
-                  <p className="font-serif text-sm text-creme/75">
-                    Revisão e pagamento
-                  </p>
-
-                  <p className="mt-0.5 font-serif text-[10px] text-creme/30">
-                    Confira tudo antes de finalizar.
-                  </p>
-                </div>
-
-                <ChevronRight
-                  className="h-4 w-4 text-dourado-200/25"
-                  strokeWidth={1.4}
-                />
-              </div>
+              <Step
+                number="3"
+                title="Revisão e pagamento"
+                description="Confira tudo antes de finalizar."
+              />
             </div>
           </div>
         </div>
 
-        {/* BOTÃO */}
         <div className="border-t border-dourado-200/15 bg-bordo-200/30 px-5 pb-6 pt-5">
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-dourado-200 px-6 py-4 font-serif text-[11px] font-semibold tracking-[0.18em] text-bordo-300 transition hover:bg-dourado-100 active:scale-[0.99]"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-dourado-200 px-6 py-4 font-serif text-[11px] font-semibold tracking-[0.18em] text-bordo-300 transition active:scale-[0.99]"
           >
             INFORMAR MINHAS PERGUNTAS
 
@@ -298,6 +241,48 @@ export function CheckoutModal() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Step({
+  number,
+  title,
+  description,
+  calendar = false,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  calendar?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b border-dourado-200/10 bg-bordo-200/25 px-4 py-4 last:border-b-0">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dourado-200/20 font-serif text-xs text-dourado-200">
+        {number}
+      </div>
+
+      <div className="flex-1">
+        <p className="font-serif text-sm text-creme/75">
+          {title}
+        </p>
+
+        <p className="mt-0.5 font-serif text-[10px] text-creme/30">
+          {description}
+        </p>
+      </div>
+
+      {calendar ? (
+        <CalendarDays
+          className="h-4 w-4 text-dourado-200/25"
+          strokeWidth={1.4}
+        />
+      ) : (
+        <ChevronRight
+          className="h-4 w-4 text-dourado-200/25"
+          strokeWidth={1.4}
+        />
+      )}
     </div>
   );
 }
