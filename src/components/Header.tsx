@@ -12,6 +12,7 @@ import {
 import type { User } from '@supabase/supabase-js';
 import { menuItems } from '@/data/services';
 import { supabase } from '@/lib/supabase';
+const adminAvatar = `${import.meta.env.BASE_URL}images/monster%20high.png`;
 
 type Profile = {
   nome: string;
