@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import {
   Check,
   Clock3,
+  Edit3,
+  Gamepad2,
   Loader2,
+  Plus,
   RefreshCw,
   Star,
   Trash2,
@@ -20,12 +23,30 @@ type Review = {
   created_at: string;
 };
 
+type Service = {
+  id: number;
+  nome: string;
+  preco: number;
+  descricao: string;
+  categoria: 'consulta' | 'tiragem';
+  ativo: boolean;
+  destaque: boolean;
+  ordem: number;
+  created_at: string;
+};
+
 type Filter = 'pendente' | 'aprovada' | 'rejeitada';
+type AdminTab = 'avaliacoes' | 'jogos';
 
 export function AdminPanel() {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<AdminTab>('avaliacoes');
+
   const [reviews, setReviews] = useState<Review[]>([]);
   const [filter, setFilter] = useState<Filter>('pendente');
+
+  const [services, setServices] = useState<Service[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -43,10 +64,14 @@ export function AdminPanel() {
   }, []);
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+
+    if (tab === 'avaliacoes') {
       loadReviews();
+    } else {
+      loadServices();
     }
-  }, [open, filter]);
+  }, [open, tab, filter]);
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
@@ -73,6 +98,29 @@ export function AdminPanel() {
       setReviews([]);
     } else {
       setReviews((data ?? []) as Review[]);
+    }
+
+    setLoading(false);
+  }
+
+  async function loadServices() {
+    setLoading(true);
+    setError('');
+
+    const { data, error } = await supabase
+      .from('services')
+      .select(
+        'id, nome, preco, descricao, categoria, ativo, destaque, ordem, created_at'
+      )
+      .order('categoria', { ascending: true })
+      .order('ordem', { ascending: true });
+
+    if (error) {
+      console.error(error);
+      setError('Não foi possível carregar os jogos.');
+      setServices([]);
+    } else {
+      setServices((data ?? []) as Service[]);
     }
 
     setLoading(false);
@@ -161,7 +209,9 @@ export function AdminPanel() {
           <section className="rounded-2xl border border-dourado-200/20 bg-bordo-200/50 p-5">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full border border-dourado-200/30 flex items-center justify-center">
-                <span className="text-dourado-200 text-lg">✦</span>
+                <span className="text-dourado-200 text-lg">
+                  ✦
+                </span>
               </div>
 
               <div>
@@ -176,211 +226,410 @@ export function AdminPanel() {
             </div>
           </section>
 
-          {/* TÍTULO */}
-          <div className="flex items-end justify-between mt-9 mb-5">
-            <div>
-              <p className="font-serif text-[10px] tracking-[0.22em] text-dourado-200/45 uppercase">
-                Gerenciamento
-              </p>
-
-              <h2 className="font-serif text-2xl text-creme/90 mt-1">
+          {/* ABAS PRINCIPAIS */}
+          <div className="grid grid-cols-2 gap-2 mt-7">
+            <button
+              type="button"
+              onClick={() => setTab('avaliacoes')}
+              className={`rounded-xl border py-3 font-serif text-xs transition ${
+                tab === 'avaliacoes'
+                  ? 'border-dourado-200/45 bg-dourado-200/10 text-dourado-200'
+                  : 'border-dourado-200/15 text-creme/40'
+              }`}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <Star className="w-4 h-4" strokeWidth={1.4} />
                 Avaliações
-              </h2>
-            </div>
+              </span>
+            </button>
 
             <button
               type="button"
-              onClick={loadReviews}
-              disabled={loading}
-              className="w-9 h-9 rounded-full border border-dourado-200/20 flex items-center justify-center text-dourado-200/60 disabled:opacity-40"
-              aria-label="Atualizar"
+              onClick={() => setTab('jogos')}
+              className={`rounded-xl border py-3 font-serif text-xs transition ${
+                tab === 'jogos'
+                  ? 'border-dourado-200/45 bg-dourado-200/10 text-dourado-200'
+                  : 'border-dourado-200/15 text-creme/40'
+              }`}
             >
-              <RefreshCw
-                className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
-                strokeWidth={1.4}
-              />
+              <span className="flex items-center justify-center gap-2">
+                <Gamepad2 className="w-4 h-4" strokeWidth={1.4} />
+                Jogos
+              </span>
             </button>
           </div>
 
-          {/* FILTROS */}
-          <div className="grid grid-cols-3 gap-2">
-            <FilterButton
-              active={filter === 'pendente'}
-              onClick={() => setFilter('pendente')}
-            >
-              Pendentes
-            </FilterButton>
+          {/* ==============================
+              AVALIAÇÕES
+          ============================== */}
 
-            <FilterButton
-              active={filter === 'aprovada'}
-              onClick={() => setFilter('aprovada')}
-            >
-              Aprovadas
-            </FilterButton>
+          {tab === 'avaliacoes' && (
+            <>
+              <div className="flex items-end justify-between mt-9 mb-5">
+                <div>
+                  <p className="font-serif text-[10px] tracking-[0.22em] text-dourado-200/45 uppercase">
+                    Gerenciamento
+                  </p>
 
-            <FilterButton
-              active={filter === 'rejeitada'}
-              onClick={() => setFilter('rejeitada')}
-            >
-              Rejeitadas
-            </FilterButton>
-          </div>
+                  <h2 className="font-serif text-2xl text-creme/90 mt-1">
+                    Avaliações
+                  </h2>
+                </div>
 
-          {/* ERRO */}
-          {error && (
-            <p className="mt-5 font-serif text-xs text-red-300/80 text-center">
-              {error}
-            </p>
+                <button
+                  type="button"
+                  onClick={loadReviews}
+                  disabled={loading}
+                  className="w-9 h-9 rounded-full border border-dourado-200/20 flex items-center justify-center text-dourado-200/60 disabled:opacity-40"
+                  aria-label="Atualizar"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${
+                      loading ? 'animate-spin' : ''
+                    }`}
+                    strokeWidth={1.4}
+                  />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <FilterButton
+                  active={filter === 'pendente'}
+                  onClick={() => setFilter('pendente')}
+                >
+                  Pendentes
+                </FilterButton>
+
+                <FilterButton
+                  active={filter === 'aprovada'}
+                  onClick={() => setFilter('aprovada')}
+                >
+                  Aprovadas
+                </FilterButton>
+
+                <FilterButton
+                  active={filter === 'rejeitada'}
+                  onClick={() => setFilter('rejeitada')}
+                >
+                  Rejeitadas
+                </FilterButton>
+              </div>
+
+              {error && (
+                <p className="mt-5 font-serif text-xs text-red-300/80 text-center">
+                  {error}
+                </p>
+              )}
+
+              {loading && (
+                <Loading />
+              )}
+
+              {!loading && reviews.length === 0 && (
+                <div className="py-16 flex flex-col items-center text-center">
+                  <Clock3
+                    className="w-7 h-7 text-dourado-200/30"
+                    strokeWidth={1.3}
+                  />
+
+                  <p className="font-serif text-sm text-creme/45 mt-4">
+                    Nenhuma avaliação nesta categoria.
+                  </p>
+                </div>
+              )}
+
+              {!loading && reviews.length > 0 && (
+                <div className="flex flex-col gap-4 mt-6">
+                  {reviews.map((review) => {
+                    const processing =
+                      actionId === review.id;
+
+                    return (
+                      <article
+                        key={review.id}
+                        className="rounded-2xl border border-dourado-200/20 bg-bordo-200/45 p-5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map(
+                              (star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-4 h-4 ${
+                                    star <=
+                                    review.estrelas
+                                      ? 'text-dourado-200 fill-current'
+                                      : 'text-dourado-200/20'
+                                  }`}
+                                  strokeWidth={1.2}
+                                />
+                              )
+                            )}
+                          </div>
+
+                          {review.destaque && (
+                            <span className="font-serif text-[9px] tracking-[0.15em] text-dourado-200/60 uppercase">
+                              Destaque ✦
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="font-serif text-[15px] text-creme/80 leading-[175%] mt-4">
+                          {review.comentario}
+                        </p>
+
+                        <p className="font-serif text-[10px] text-creme/25 mt-4">
+                          {new Date(
+                            review.created_at
+                          ).toLocaleDateString('pt-BR')}
+                        </p>
+
+                        <div className="mt-5 pt-4 border-t border-dourado-200/10">
+                          {filter === 'pendente' && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <ActionButton
+                                disabled={processing}
+                                onClick={() =>
+                                  updateReview(
+                                    review.id,
+                                    {
+                                      status:
+                                        'aprovada',
+                                    }
+                                  )
+                                }
+                              >
+                                <Check className="w-4 h-4" />
+                                Aprovar
+                              </ActionButton>
+
+                              <ActionButton
+                                disabled={processing}
+                                onClick={() =>
+                                  updateReview(
+                                    review.id,
+                                    {
+                                      status:
+                                        'rejeitada',
+                                    }
+                                  )
+                                }
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Rejeitar
+                              </ActionButton>
+                            </div>
+                          )}
+
+                          {filter === 'aprovada' && (
+                            <button
+                              type="button"
+                              disabled={processing}
+                              onClick={() =>
+                                updateReview(
+                                  review.id,
+                                  {
+                                    destaque:
+                                      !review.destaque,
+                                  }
+                                )
+                              }
+                              className="w-full rounded-xl border border-dourado-200/20 px-4 py-3 font-serif text-xs text-dourado-200/75 disabled:opacity-40"
+                            >
+                              {review.destaque
+                                ? 'Remover dos destaques'
+                                : 'Marcar como destaque ✦'}
+                            </button>
+                          )}
+
+                          {filter === 'rejeitada' && (
+                            <button
+                              type="button"
+                              disabled={processing}
+                              onClick={() =>
+                                updateReview(
+                                  review.id,
+                                  {
+                                    status:
+                                      'aprovada',
+                                  }
+                                )
+                              }
+                              className="w-full rounded-xl border border-dourado-200/20 px-4 py-3 font-serif text-xs text-dourado-200/75 disabled:opacity-40"
+                            >
+                              Aprovar avaliação
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={processing}
+                            onClick={() =>
+                              deleteReview(review.id)
+                            }
+                            className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 font-serif text-xs text-creme/35 hover:text-red-300/70 disabled:opacity-40"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Excluir
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
 
-          {/* CARREGANDO */}
-          {loading && (
-            <div className="py-16 flex justify-center">
-              <Loader2
-                className="w-6 h-6 text-dourado-200/60 animate-spin"
-                strokeWidth={1.4}
-              />
-            </div>
-          )}
+          {/* ==============================
+              JOGOS / SERVIÇOS
+          ============================== */}
 
-          {/* SEM AVALIAÇÕES */}
-          {!loading && reviews.length === 0 && (
-            <div className="py-16 flex flex-col items-center text-center">
-              <Clock3
-                className="w-7 h-7 text-dourado-200/30"
-                strokeWidth={1.3}
-              />
+          {tab === 'jogos' && (
+            <>
+              <div className="flex items-end justify-between mt-9 mb-5">
+                <div>
+                  <p className="font-serif text-[10px] tracking-[0.22em] text-dourado-200/45 uppercase">
+                    Gerenciamento
+                  </p>
 
-              <p className="font-serif text-sm text-creme/45 mt-4">
-                Nenhuma avaliação nesta categoria.
-              </p>
-            </div>
-          )}
+                  <h2 className="font-serif text-2xl text-creme/90 mt-1">
+                    Jogos
+                  </h2>
+                </div>
 
-          {/* AVALIAÇÕES */}
-          {!loading && reviews.length > 0 && (
-            <div className="flex flex-col gap-4 mt-6">
-              {reviews.map((review) => {
-                const processing = actionId === review.id;
+                <button
+                  type="button"
+                  onClick={loadServices}
+                  disabled={loading}
+                  className="w-9 h-9 rounded-full border border-dourado-200/20 flex items-center justify-center text-dourado-200/60 disabled:opacity-40"
+                  aria-label="Atualizar"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${
+                      loading ? 'animate-spin' : ''
+                    }`}
+                    strokeWidth={1.4}
+                  />
+                </button>
+              </div>
 
-                return (
-                  <article
-                    key={review.id}
-                    className="rounded-2xl border border-dourado-200/20 bg-bordo-200/45 p-5"
-                  >
-                    {/* ESTRELAS */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`w-4 h-4 ${
-                              star <= review.estrelas
-                                ? 'text-dourado-200 fill-current'
-                                : 'text-dourado-200/20'
-                            }`}
-                            strokeWidth={1.2}
-                          />
-                        ))}
+              {/* NOVO JOGO - ativaremos na próxima etapa */}
+              <button
+                type="button"
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-dourado-200/35 bg-dourado-200/10 px-4 py-3.5 font-serif text-sm text-dourado-200"
+              >
+                <Plus
+                  className="w-4 h-4"
+                  strokeWidth={1.5}
+                />
+                Novo jogo
+              </button>
+
+              {error && (
+                <p className="mt-5 font-serif text-xs text-red-300/80 text-center">
+                  {error}
+                </p>
+              )}
+
+              {loading && <Loading />}
+
+              {!loading && services.length === 0 && (
+                <div className="py-16 text-center">
+                  <p className="font-serif text-sm text-creme/45">
+                    Nenhum jogo cadastrado.
+                  </p>
+                </div>
+              )}
+
+              {!loading && services.length > 0 && (
+                <div className="flex flex-col gap-4 mt-6">
+                  {services.map((service) => (
+                    <article
+                      key={service.id}
+                      className={`rounded-2xl border p-5 ${
+                        service.ativo
+                          ? 'border-dourado-200/20 bg-bordo-200/45'
+                          : 'border-creme/10 bg-bordo-200/20 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-serif text-[9px] tracking-[0.15em] text-dourado-200/50 uppercase">
+                              {service.categoria ===
+                              'consulta'
+                                ? 'Consulta'
+                                : 'Tiragem'}
+                            </span>
+
+                            {!service.ativo && (
+                              <span className="font-serif text-[9px] text-creme/30 uppercase">
+                                • Inativo
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 className="font-serif text-lg text-creme/90 mt-2">
+                            {service.nome}
+                          </h3>
+                        </div>
+
+                        <span className="font-serif text-lg text-dourado-200 whitespace-nowrap">
+                          {Number(
+                            service.preco
+                          ).toLocaleString('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          })}
+                        </span>
                       </div>
 
-                      {review.destaque && (
-                        <span className="font-serif text-[9px] tracking-[0.15em] text-dourado-200/60 uppercase">
-                          Destaque ✦
+                      <p className="font-serif text-sm text-creme/55 leading-relaxed mt-4">
+                        {service.descricao}
+                      </p>
+
+                      <div className="flex items-center justify-between mt-5 pt-4 border-t border-dourado-200/10">
+                        <span className="font-serif text-[10px] text-creme/30">
+                          Ordem: {service.ordem}
                         </span>
-                      )}
-                    </div>
 
-                    {/* COMENTÁRIO */}
-                    <p className="font-serif text-[15px] text-creme/80 leading-[175%] mt-4">
-                      {review.comentario}
-                    </p>
-
-                    <p className="font-serif text-[10px] text-creme/25 mt-4">
-                      {new Date(review.created_at).toLocaleDateString(
-                        'pt-BR'
-                      )}
-                    </p>
-
-                    {/* AÇÕES */}
-                    <div className="mt-5 pt-4 border-t border-dourado-200/10">
-                      {filter === 'pendente' && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <ActionButton
-                            disabled={processing}
-                            onClick={() =>
-                              updateReview(review.id, {
-                                status: 'aprovada',
-                              })
-                            }
-                          >
-                            <Check className="w-4 h-4" />
-                            Aprovar
-                          </ActionButton>
-
-                          <ActionButton
-                            disabled={processing}
-                            onClick={() =>
-                              updateReview(review.id, {
-                                status: 'rejeitada',
-                              })
-                            }
-                          >
-                            <XCircle className="w-4 h-4" />
-                            Rejeitar
-                          </ActionButton>
-                        </div>
-                      )}
-
-                      {filter === 'aprovada' && (
-                        <button
-                          type="button"
-                          disabled={processing}
-                          onClick={() =>
-                            updateReview(review.id, {
-                              destaque: !review.destaque,
-                            })
-                          }
-                          className="w-full rounded-xl border border-dourado-200/20 px-4 py-3 font-serif text-xs text-dourado-200/75 disabled:opacity-40"
-                        >
-                          {review.destaque
-                            ? 'Remover dos destaques'
-                            : 'Marcar como destaque ✦'}
-                        </button>
-                      )}
-
-                      {filter === 'rejeitada' && (
-                        <button
-                          type="button"
-                          disabled={processing}
-                          onClick={() =>
-                            updateReview(review.id, {
-                              status: 'aprovada',
-                            })
-                          }
-                          className="w-full rounded-xl border border-dourado-200/20 px-4 py-3 font-serif text-xs text-dourado-200/75 disabled:opacity-40"
-                        >
-                          Aprovar avaliação
-                        </button>
-                      )}
+                        {service.destaque && (
+                          <span className="font-serif text-[10px] text-dourado-200/60">
+                            Destaque ✦
+                          </span>
+                        )}
+                      </div>
 
                       <button
                         type="button"
-                        disabled={processing}
-                        onClick={() => deleteReview(review.id)}
-                        className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 font-serif text-xs text-creme/35 hover:text-red-300/70 disabled:opacity-40"
+                        className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-dourado-200/20 px-4 py-3 font-serif text-xs text-dourado-200/70"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Excluir
+                        <Edit3
+                          className="w-3.5 h-3.5"
+                          strokeWidth={1.4}
+                        />
+                        Editar
                       </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
+    </div>
+  );
+}
+
+function Loading() {
+  return (
+    <div className="py-16 flex justify-center">
+      <Loader2
+        className="w-6 h-6 text-dourado-200/60 animate-spin"
+        strokeWidth={1.4}
+      />
     </div>
   );
 }
