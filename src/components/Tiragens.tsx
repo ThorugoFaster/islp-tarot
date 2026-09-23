@@ -3,10 +3,14 @@ import {
   Check,
   Eye,
   Loader2,
+  MessageCircle,
   ShoppingBag,
   Sparkles,
 } from 'lucide-react';
-import type { Service } from '@/data/services';
+import {
+  buildWhatsAppLink,
+  type Service,
+} from '@/data/services';
 import { useReveal } from '@/hooks/useReveal';
 import { ServiceModal } from './ServiceModal';
 import { supabase } from '@/lib/supabase';
@@ -223,6 +227,7 @@ function TiragemCard({
         </div>
       </div>
 
+      {/* PREÇO + DETALHES */}
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-dourado-200/10">
         <span className="font-serif text-2xl font-semibold text-gradient-gold">
           {service.price}
@@ -242,6 +247,7 @@ function TiragemCard({
         </button>
       </div>
 
+      {/* ADICIONAR AO CARRINHO */}
       <button
         type="button"
         onClick={handleAddToCart}
@@ -271,6 +277,24 @@ function TiragemCard({
           </>
         )}
       </button>
+
+      {/* WHATSAPP */}
+      <a
+        href={buildWhatsAppLink(
+          service.name,
+          service.price
+        )}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 flex items-center justify-center gap-2 py-1.5 font-serif text-xs text-creme/45 transition-colors duration-300 hover:text-dourado-200"
+      >
+        <MessageCircle
+          className="w-3.5 h-3.5"
+          strokeWidth={1.5}
+        />
+
+        Prefiro agendar pelo WhatsApp
+      </a>
     </div>
   );
 }
