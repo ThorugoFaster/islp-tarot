@@ -1,47 +1,97 @@
-import { Star } from 'lucide-react';
+import { Star, UserRound } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
+import { testimonials } from '@/data/services';
 
 export function Testimonials() {
   const { ref, visible } = useReveal<HTMLDivElement>();
 
   return (
     <section className="relative px-5 py-16 bg-bordo-200">
-      <div ref={ref} className={`flex flex-col items-center text-center ${visible ? 'is-visible' : 'reveal'}`}>
+      <div
+        ref={ref}
+        className={`flex flex-col items-center text-center ${
+          visible ? 'is-visible' : 'reveal'
+        }`}
+      >
         <div className="flex items-center gap-3 mb-3">
           <div className="ornament-line w-12" />
-          <Star className="w-3.5 h-3.5 text-dourado-200/60" strokeWidth={1.5} />
+          <Star
+            className="w-3.5 h-3.5 text-dourado-200/60"
+            strokeWidth={1.5}
+          />
           <div className="ornament-line w-12" />
         </div>
+
         <h2 className="font-serif text-2xl font-semibold tracking-[0.12em] text-gradient-gold">
           O QUE DIZEM SOBRE AS LEITURAS
         </h2>
+
+        <p className="font-serif text-sm text-creme/50 mt-4 max-w-[300px] leading-relaxed">
+          Experiências reais de quem já encontrou orientação através das cartas.
+        </p>
       </div>
 
-      <div className="flex flex-col gap-4 mt-10">
-        {[0, 1].map((i) => (
+      <div className="flex flex-col gap-5 mt-10">
+        {testimonials.map((testimonial, index) => (
           <div
-            key={i}
-            className="rounded-xl border border-dashed border-dourado-200/15 bg-bordo-300/40 px-6 py-10 flex flex-col items-center text-center"
+            key={testimonial.id}
+            className="rounded-xl border border-dourado-200/20 bg-bordo-300/50 px-5 py-6"
           >
-            <div className="flex gap-1 mb-3">
-              {[0, 1, 2, 3, 4].map((s) => (
-                <Star
-                  key={s}
-                  className="w-3.5 h-3.5 text-dourado-200/20"
-                  strokeWidth={1.5}
+            {/* Cabeçalho da avaliação */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full border border-dourado-200/25 bg-bordo-200 flex items-center justify-center">
+                <UserRound
+                  className="w-5 h-5 text-dourado-200/50"
+                  strokeWidth={1.4}
                 />
-              ))}
+              </div>
+
+              <div className="flex flex-col items-start">
+                <span className="font-serif text-sm text-creme/60 blur-[3px] select-none">
+                  {testimonial.name}
+                </span>
+
+                <div className="flex gap-1 mt-1">
+                  {[0, 1, 2, 3, 4].map((star) => (
+                    <Star
+                      key={star}
+                      className="w-3 h-3 text-dourado-200/70 fill-current"
+                      strokeWidth={1.2}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="font-serif text-sm text-creme/30 italic">
-              Espaço reservado para depoimento
+
+            {/* Texto real da avaliação */}
+            <p className="font-serif text-[15px] text-creme/80 italic leading-[175%]">
+              “{testimonial.text}”
             </p>
+
+            <div className="flex items-center gap-2 mt-5">
+              <div className="h-px flex-1 bg-dourado-200/10" />
+              <Sparkle index={index} />
+              <div className="h-px flex-1 bg-dourado-200/10" />
+            </div>
           </div>
         ))}
       </div>
 
-      <p className="font-serif text-[15px] text-dourado-200/50 italic text-center mt-8 max-w-[280px] mx-auto leading-[160%]">
-        Em breve, experiências de quem já consultou as cartas.
-      </p>
+      <div className="flex items-center justify-center gap-3 mt-10">
+        <div className="ornament-line w-10" />
+        <span className="font-serif text-[10px] tracking-[0.25em] text-dourado-200/50 uppercase">
+          Experiências reais
+        </span>
+        <div className="ornament-line w-10" />
+      </div>
     </section>
+  );
+}
+
+function Sparkle({ index }: { index: number }) {
+  return (
+    <span className="text-dourado-200/30 text-[10px]">
+      {index % 2 === 0 ? '✦' : '✧'}
+    </span>
   );
 }
