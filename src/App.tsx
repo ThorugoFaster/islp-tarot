@@ -6,13 +6,14 @@ import { HowItWorks } from '@/components/HowItWorks';
 import { Testimonials } from '@/components/Testimonials';
 import { FinalCTA } from '@/components/FinalCTA';
 import { Footer } from '@/components/Footer';
-import { ReviewModal } from './components/ReviewModal';
+import { ReviewModal } from '@/components/ReviewModal';
 import { AdminPanel } from '@/components/AdminPanel';
 
 function App() {
   return (
     <div className="w-full max-w-[480px] mx-auto bg-bordo-300 min-h-screen overflow-x-hidden">
       <Header />
+
       <main>
         <Hero />
         <Consultations />
@@ -21,9 +22,11 @@ function App() {
         <Testimonials />
         <FinalCTA />
       </main>
+
       <Footer />
+
       <ReviewModal />
-      <ReviewModal />
+      <AdminPanel />
     </div>
   );
 }
