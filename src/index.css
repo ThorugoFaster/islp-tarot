@@ -85,3 +85,25 @@
     box-shadow: 0 0 30px rgba(212, 175, 55, 0.08), 0 0 60px rgba(212, 175, 55, 0.04);
   }
 }
+.AdminInput {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgb(212 175 55 / 0.2);
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.08);
+  padding-left: 14px;
+  padding-right: 14px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 14px;
+  color: rgb(255 248 230 / 0.85);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.AdminInput:focus {
+  border-color: rgb(212 175 55 / 0.5);
+}
+
+.AdminInput::placeholder {
+  color: rgb(255 248 230 / 0.25);
+}
