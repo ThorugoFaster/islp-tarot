@@ -8,6 +8,7 @@ import { FinalCTA } from '@/components/FinalCTA';
 import { Footer } from '@/components/Footer';
 import { ReviewModal } from '@/components/ReviewModal';
 import { AdminPanel } from '@/components/AdminPanel';
+import { LoginModal } from '@/components/LoginModal';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
       <Footer />
 
       <ReviewModal />
+      <LoginModal />
       <AdminPanel />
     </div>
   );
