@@ -1,4 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react';
+import {
+  FormEvent,
+  useEffect,
+  useState,
+} from 'react';
 import {
   ArrowLeft,
   Eye,
@@ -22,14 +26,16 @@ type LoginResponse = {
 
 export function LoginModal() {
   const [open, setOpen] = useState(false);
-  const [screen, setScreen] = useState<Screen>('login');
+  const [screen, setScreen] =
+    useState<Screen>('login');
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [senha, setSenha] = useState('');
 
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] =
+    useState(false);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -41,18 +47,30 @@ export function LoginModal() {
       setOpen(true);
     }
 
-    document.addEventListener('open-login', handleOpen);
+    document.addEventListener(
+      'open-login',
+      handleOpen
+    );
 
     return () => {
-      document.removeEventListener('open-login', handleOpen);
+      document.removeEventListener(
+        'open-login',
+        handleOpen
+      );
     };
   }, []);
 
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
+    if (!open) return;
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow = 'hidden';
 
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow =
+        previousOverflow;
     };
   }, [open]);
 
@@ -63,13 +81,41 @@ export function LoginModal() {
     setShowPassword(false);
   }
 
-  async function handleLogin(event: FormEvent) {
+  function continueAfterAuthentication() {
+    const afterLogin =
+      sessionStorage.getItem(
+        'islp-after-login'
+      );
+
+    if (afterLogin === 'checkout') {
+      sessionStorage.removeItem(
+        'islp-after-login'
+      );
+
+      window.setTimeout(() => {
+        document.dispatchEvent(
+          new CustomEvent('open-checkout')
+        );
+      }, 150);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  async function handleLogin(
+    event: FormEvent
+  ) {
     event.preventDefault();
 
-    const cleanUsername = username.trim().toLowerCase();
+    const cleanUsername =
+      username.trim().toLowerCase();
 
     if (!cleanUsername || !senha) {
-      setErro('Preencha seu usuário e sua senha.');
+      setErro(
+        'Preencha seu usuário e sua senha.'
+      );
       return;
     }
 
@@ -112,7 +158,9 @@ export function LoginModal() {
         sessionError ||
         !sessionData.user
       ) {
-        setErro('Não foi possível iniciar sua sessão.');
+        setErro(
+          'Não foi possível iniciar sua sessão.'
+        );
         return;
       }
 
@@ -128,7 +176,9 @@ export function LoginModal() {
       if (profileError || !profile) {
         await supabase.auth.signOut();
 
-        setErro('Não foi possível carregar sua conta.');
+        setErro(
+          'Não foi possível carregar sua conta.'
+        );
         return;
       }
 
@@ -136,31 +186,51 @@ export function LoginModal() {
       setErro('');
       setOpen(false);
 
+      const continued =
+        continueAfterAuthentication();
+
+      if (continued) {
+        return;
+      }
+
       if (profile.role === 'admin') {
-        setTimeout(() => {
+        window.setTimeout(() => {
           document.dispatchEvent(
-            new CustomEvent('open-admin-panel')
+            new CustomEvent(
+              'open-admin-panel'
+            )
           );
         }, 150);
       }
     } catch (error) {
-      console.error('Erro ao realizar login:', error);
+      console.error(
+        'Erro ao realizar login:',
+        error
+      );
 
-      setErro('Não foi possível realizar o login.');
+      setErro(
+        'Não foi possível realizar o login.'
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleRegister(event: FormEvent) {
+  async function handleRegister(
+    event: FormEvent
+  ) {
     event.preventDefault();
 
-    const cleanUsername = username.trim().toLowerCase();
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername =
+      username.trim().toLowerCase();
+    const cleanEmail =
+      email.trim().toLowerCase();
     const cleanPhone = telefone.trim();
 
     if (!cleanUsername) {
-      setErro('Escolha um nome de usuário.');
+      setErro(
+        'Escolha um nome de usuário.'
+      );
       return;
     }
 
@@ -171,7 +241,11 @@ export function LoginModal() {
       return;
     }
 
-    if (!/^[a-z0-9._]+$/.test(cleanUsername)) {
+    if (
+      !/^[a-z0-9._]+$/.test(
+        cleanUsername
+      )
+    ) {
       setErro(
         'Use apenas letras, números, ponto ou underline no usuário.'
       );
@@ -203,22 +277,35 @@ export function LoginModal() {
             data: {
               nome: cleanUsername,
               username: cleanUsername,
-              telefone: cleanPhone || null,
+              telefone:
+                cleanPhone || null,
             },
           },
         });
 
       if (error) {
-        const message = error.message.toLowerCase();
+        const message =
+          error.message.toLowerCase();
 
         if (
-          message.includes('already registered') ||
-          message.includes('already been registered') ||
-          message.includes('user already registered')
+          message.includes(
+            'already registered'
+          ) ||
+          message.includes(
+            'already been registered'
+          ) ||
+          message.includes(
+            'user already registered'
+          )
         ) {
-          setErro('Este e-mail já possui uma conta.');
+          setErro(
+            'Este e-mail já possui uma conta.'
+          );
         } else {
-          console.error('Erro no cadastro:', error);
+          console.error(
+            'Erro no cadastro:',
+            error
+          );
 
           setErro(
             'Não foi possível criar sua conta. Tente novamente.'
@@ -229,7 +316,9 @@ export function LoginModal() {
       }
 
       if (!data.user) {
-        setErro('Não foi possível criar sua conta.');
+        setErro(
+          'Não foi possível criar sua conta.'
+        );
         return;
       }
 
@@ -243,14 +332,16 @@ export function LoginModal() {
         return;
       }
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          nome: cleanUsername,
-          username: cleanUsername,
-          telefone: cleanPhone || null,
-        })
-        .eq('id', data.user.id);
+      const { error: profileError } =
+        await supabase
+          .from('profiles')
+          .update({
+            nome: cleanUsername,
+            username: cleanUsername,
+            telefone:
+              cleanPhone || null,
+          })
+          .eq('id', data.user.id);
 
       if (profileError) {
         console.error(
@@ -258,15 +349,17 @@ export function LoginModal() {
           profileError
         );
 
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            nome: cleanUsername,
-            username: cleanUsername,
-            telefone: cleanPhone || null,
-            role: 'cliente',
-          });
+        const { error: insertError } =
+          await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              nome: cleanUsername,
+              username: cleanUsername,
+              telefone:
+                cleanPhone || null,
+              role: 'cliente',
+            });
 
         if (insertError) {
           console.error(
@@ -287,8 +380,13 @@ export function LoginModal() {
       setSenha('');
       setErro('');
       setOpen(false);
+
+      continueAfterAuthentication();
     } catch (error) {
-      console.error('Erro ao criar conta:', error);
+      console.error(
+        'Erro ao criar conta:',
+        error
+      );
 
       setErro(
         'Não foi possível criar sua conta. Tente novamente.'
@@ -301,8 +399,8 @@ export function LoginModal() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm">
-      <div className="relative w-full max-w-[480px] max-h-[92vh] overflow-y-auto rounded-t-[28px] sm:rounded-[28px] border border-dourado-200/20 bg-bordo-300 px-6 pb-8 pt-6 shadow-2xl">
+    <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center">
+      <div className="relative max-h-[92vh] w-full max-w-[480px] overflow-y-auto rounded-t-[28px] border border-dourado-200/20 bg-bordo-300 px-6 pb-8 pt-6 shadow-2xl sm:rounded-[28px]">
 
         <button
           type="button"
@@ -514,14 +612,20 @@ function TextInput({
       <input
         type={type}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
         placeholder={placeholder}
         autoComplete={autoComplete}
         autoCapitalize={
-          type === 'text' ? 'none' : undefined
+          type === 'text'
+            ? 'none'
+            : undefined
         }
         spellCheck={
-          type === 'text' ? false : undefined
+          type === 'text'
+            ? false
+            : undefined
         }
         className="h-12 w-full bg-transparent font-serif text-sm text-creme/80 outline-none placeholder:text-creme/30"
       />
@@ -548,13 +652,17 @@ function PasswordInput({
       />
 
       <input
-        type={show ? 'text' : 'password'}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Senha"
-        autoComplete={
-          'current-password'
+        type={
+          show
+            ? 'text'
+            : 'password'
         }
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        placeholder="Senha"
+        autoComplete="current-password"
         className="h-12 w-full bg-transparent font-serif text-sm text-creme/80 outline-none placeholder:text-creme/30"
       />
 
@@ -562,7 +670,9 @@ function PasswordInput({
         type="button"
         onClick={() => setShow(!show)}
         aria-label={
-          show ? 'Ocultar senha' : 'Mostrar senha'
+          show
+            ? 'Ocultar senha'
+            : 'Mostrar senha'
         }
         className="ml-2 text-dourado-200/40"
       >
