@@ -12,6 +12,7 @@ import {
 import type { User } from '@supabase/supabase-js';
 import { menuItems } from '@/data/services';
 import { supabase } from '@/lib/supabase';
+
 const adminAvatar = `${import.meta.env.BASE_URL}images/monster%20high.png`;
 
 type Profile = {
@@ -97,14 +98,16 @@ export function Header() {
     }, 100);
   }
 
- function handleLogin() {
-  setOpen(false);
+  // Login geral
+  function handleLogin() {
+    setOpen(false);
 
-  setTimeout(() => {
-    document.dispatchEvent(new CustomEvent('open-login'));
-  }, 150);
-}
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('open-login'));
+    }, 150);
+  }
 
+  // Avaliação
   function handleReview() {
     setOpen(false);
 
@@ -113,15 +116,13 @@ export function Header() {
     }, 150);
   }
 
+  // Painel administrativo
   function handleAdmin() {
     setOpen(false);
 
-    /*
-      Na próxima etapa vamos trocar isto pela abertura
-      do Painel Administrativo.
-    */
-
-    document.dispatchEvent(new CustomEvent('open-admin-panel'));
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('open-admin-panel'));
+    }, 150);
   }
 
   async function handleLogout() {
@@ -141,8 +142,11 @@ export function Header() {
 
   return (
     <>
+      {/* HEADER */}
       <header className="fixed top-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-[480px] bg-bordo-300/95 backdrop-blur-md border-b border-dourado-200/15">
         <div className="flex items-center justify-between px-5 h-14">
+
+          {/* LOGO */}
           <button
             onClick={() => handleNav('inicio')}
             className="flex items-center gap-2"
@@ -158,22 +162,28 @@ export function Header() {
             </span>
           </button>
 
+          {/* MENU */}
           <button
             onClick={() => setOpen(true)}
             className="p-2 -mr-2 text-dourado-200"
             aria-label="Abrir menu"
           >
-            <Menu className="w-6 h-6" strokeWidth={1.5} />
+            <Menu
+              className="w-6 h-6"
+              strokeWidth={1.5}
+            />
           </button>
         </div>
       </header>
 
+      {/* MENU ABERTO */}
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-end"
           role="dialog"
           aria-modal="true"
         >
+          {/* FUNDO */}
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setOpen(false)}
@@ -181,7 +191,7 @@ export function Header() {
 
           <nav className="relative w-full max-w-[480px] h-full bg-bordo-200 border-l border-dourado-200/20 flex flex-col animate-fade-in overflow-y-auto">
 
-            {/* Cabeçalho */}
+            {/* CABEÇALHO DO MENU */}
             <div className="flex items-center justify-between px-5 h-14 min-h-14 border-b border-dourado-200/15">
               <span className="font-serif text-lg tracking-[0.15em] text-gradient-gold font-semibold">
                 MENU
@@ -192,11 +202,14 @@ export function Header() {
                 className="p-2 -mr-2 text-dourado-200"
                 aria-label="Fechar menu"
               >
-                <X className="w-6 h-6" strokeWidth={1.5} />
+                <X
+                  className="w-6 h-6"
+                  strokeWidth={1.5}
+                />
               </button>
             </div>
 
-            {/* Navegação */}
+            {/* NAVEGAÇÃO */}
             <ul className="flex flex-col px-5 py-4">
               {menuItems.map((item, i) => (
                 <li
@@ -218,12 +231,12 @@ export function Header() {
               ))}
             </ul>
 
-            {/* Área da conta */}
+            {/* ÁREA DA CONTA */}
             <div className="px-5 mt-2">
               <div className="ornament-line w-full mb-5" />
 
+              {/* DESLOGADO */}
               {!user ? (
-                /* DESLOGADO */
                 <button
                   type="button"
                   onClick={handleLogin}
@@ -249,17 +262,19 @@ export function Header() {
               ) : (
                 /* LOGADO */
                 <div>
-                  {/* Perfil */}
+
+                  {/* PERFIL */}
                   <div className="flex items-center gap-4 px-1 pb-5">
+
+                    {/* AVATAR */}
                     <div className="relative w-12 h-12 rounded-full border border-dourado-200/30 bg-bordo-300 flex items-center justify-center overflow-hidden">
+
+                      {/* SOMENTE ADMIN RECEBE A CAVEIRINHA */}
                       {isAdmin ? (
-                        /*
-                          Depois colocaremos aqui a caveirinha
-                          transparente da Isis.
-                        */
-                        <ShieldCheck
-                          className="w-6 h-6 text-dourado-200"
-                          strokeWidth={1.3}
+                        <img
+                          src={adminAvatar}
+                          alt="Isis"
+                          className="w-full h-full object-contain p-1"
                         />
                       ) : (
                         <UserRound
@@ -267,8 +282,10 @@ export function Header() {
                           strokeWidth={1.3}
                         />
                       )}
+
                     </div>
 
+                    {/* NOME */}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-serif text-lg text-creme/90 truncate">
@@ -320,7 +337,7 @@ export function Header() {
                     </button>
                   )}
 
-                  {/* Sair */}
+                  {/* SAIR */}
                   <button
                     type="button"
                     onClick={handleLogout}
@@ -337,7 +354,7 @@ export function Header() {
               )}
             </div>
 
-            {/* Rodapé */}
+            {/* RODAPÉ */}
             <div className="mt-auto px-5 py-6">
               <div className="ornament-line w-full mb-4" />
 
