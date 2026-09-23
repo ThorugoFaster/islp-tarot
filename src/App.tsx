@@ -10,6 +10,7 @@ import { ReviewModal } from '@/components/ReviewModal';
 import { AdminPanel } from '@/components/AdminPanel';
 import { LoginModal } from '@/components/LoginModal';
 import { CartDrawer } from '@/components/CartDrawer';
+import { CheckoutModal } from '@/components/CheckoutModal';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
       <ReviewModal />
       <LoginModal />
       <CartDrawer />
+      <CheckoutModal />
       <AdminPanel />
     </div>
   );
