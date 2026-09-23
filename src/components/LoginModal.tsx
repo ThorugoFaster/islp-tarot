@@ -48,9 +48,7 @@ export function LoginModal() {
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
 
-    const cleanUsername = username
-      .trim()
-      .toLowerCase();
+    const cleanUsername = username.trim().toLowerCase();
 
     if (!cleanUsername || !senha) {
       setErro('Preencha seu usuário e sua senha.');
@@ -61,12 +59,6 @@ export function LoginModal() {
     setErro('');
 
     try {
-      /*
-        A Edge Function recebe usuário + senha.
-
-        O e-mail verdadeiro da conta nunca precisa
-        ficar salvo no código público do site.
-      */
       const { data, error } =
         await supabase.functions.invoke<LoginResponse>(
           'login-username',
@@ -90,13 +82,6 @@ export function LoginModal() {
         return;
       }
 
-      /*
-        A Edge Function devolve os tokens depois
-        de validar a senha.
-
-        Agora criamos a sessão normal do Supabase
-        no navegador.
-      */
       const {
         data: sessionData,
         error: sessionError,
@@ -115,9 +100,6 @@ export function LoginModal() {
         return;
       }
 
-      /*
-        Confirmamos o perfil e a função do usuário.
-      */
       const {
         data: profile,
         error: profileError,
@@ -141,9 +123,6 @@ export function LoginModal() {
       setErro('');
       setOpen(false);
 
-      /*
-        Se for administradora, abre o painel.
-      */
       if (profile.role === 'admin') {
         setTimeout(() => {
           document.dispatchEvent(
@@ -170,7 +149,6 @@ export function LoginModal() {
   return (
     <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm">
       <div className="relative w-full max-w-[480px] rounded-t-[28px] sm:rounded-[28px] border border-dourado-200/20 bg-bordo-300 px-6 pb-8 pt-6 shadow-2xl">
-
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -210,8 +188,6 @@ export function LoginModal() {
           </div>
 
           <div className="mt-8 space-y-4">
-
-            {/* USUÁRIO */}
             <div className="flex items-center rounded-full border border-dourado-200/20 bg-bordo-200/60 px-4 focus-within:border-dourado-200/45">
               <UserRound
                 className="mr-3 h-4 w-4 text-dourado-200/40"
@@ -232,7 +208,6 @@ export function LoginModal() {
               />
             </div>
 
-            {/* SENHA */}
             <div className="flex items-center rounded-full border border-dourado-200/20 bg-bordo-200/60 px-4 focus-within:border-dourado-200/45">
               <LockKeyhole
                 className="mr-3 h-4 w-4 text-dourado-200/40"
