@@ -96,13 +96,13 @@ export function Header() {
     }, 100);
   }
 
-  function handleLogin() {
-    setOpen(false);
+ function handleLogin() {
+  setOpen(false);
 
-    setTimeout(() => {
-      document.dispatchEvent(new CustomEvent('open-review-auth'));
-    }, 150);
-  }
+  setTimeout(() => {
+    document.dispatchEvent(new CustomEvent('open-login'));
+  }, 150);
+}
 
   function handleReview() {
     setOpen(false);
