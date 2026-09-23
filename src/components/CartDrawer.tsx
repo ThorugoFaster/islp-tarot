@@ -7,6 +7,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
+import { supabase } from '@/lib/supabase';
 
 export function CartDrawer() {
   const [open, setOpen] = useState(false);
@@ -59,18 +60,34 @@ export function CartDrawer() {
     }).format(value);
   }
 
-  function handleContinue() {
+  async function handleContinue() {
     if (items.length === 0) return;
 
-    /*
-      Na próxima etapa esse botão vai levar para:
-      1. identificação/login
-      2. perguntas
-      3. agendamento
-      4. pagamento
-    */
+    const { data } =
+      await supabase.auth.getSession();
 
-    console.log('Continuar compra', items);
+    setOpen(false);
+
+    if (data.session?.user) {
+      window.setTimeout(() => {
+        document.dispatchEvent(
+          new CustomEvent('open-checkout')
+        );
+      }, 100);
+
+      return;
+    }
+
+    sessionStorage.setItem(
+      'islp-after-login',
+      'checkout'
+    );
+
+    window.setTimeout(() => {
+      document.dispatchEvent(
+        new CustomEvent('open-login')
+      );
+    }, 100);
   }
 
   if (!open) {
