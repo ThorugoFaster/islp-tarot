@@ -27,6 +27,7 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const { quantidadeTotal } = useCart();
 
   useEffect(() => {
     async function loadSession() {
