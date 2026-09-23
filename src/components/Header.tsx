@@ -27,6 +27,7 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+
   const { quantidadeTotal } = useCart();
 
   useEffect(() => {
@@ -96,36 +97,47 @@ export function Header() {
       const el = document.getElementById(href);
 
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
+        el.scrollIntoView({
+          behavior: 'smooth',
+        });
       }
     }, 100);
   }
 
-  // Login geral
   function handleLogin() {
     setOpen(false);
 
     setTimeout(() => {
-      document.dispatchEvent(new CustomEvent('open-login'));
+      document.dispatchEvent(
+        new CustomEvent('open-login')
+      );
     }, 150);
   }
 
-  // Avaliação
   function handleReview() {
     setOpen(false);
 
     setTimeout(() => {
-      document.dispatchEvent(new CustomEvent('open-review-auth'));
+      document.dispatchEvent(
+        new CustomEvent('open-review-auth')
+      );
     }, 150);
   }
 
-  // Painel administrativo
   function handleAdmin() {
     setOpen(false);
 
     setTimeout(() => {
-      document.dispatchEvent(new CustomEvent('open-admin-panel'));
+      document.dispatchEvent(
+        new CustomEvent('open-admin-panel')
+      );
     }, 150);
+  }
+
+  function handleCart() {
+    document.dispatchEvent(
+      new CustomEvent('open-cart')
+    );
   }
 
   async function handleLogout() {
@@ -151,6 +163,7 @@ export function Header() {
 
           {/* LOGO */}
           <button
+            type="button"
             onClick={() => handleNav('inicio')}
             className="flex items-center gap-2"
             aria-label="ISLP Tarot — Início"
@@ -165,17 +178,51 @@ export function Header() {
             </span>
           </button>
 
-          {/* MENU */}
-          <button
-            onClick={() => setOpen(true)}
-            className="p-2 -mr-2 text-dourado-200"
-            aria-label="Abrir menu"
-          >
-            <Menu
-              className="w-6 h-6"
-              strokeWidth={1.5}
-            />
-          </button>
+          {/* AÇÕES */}
+          <div className="flex items-center gap-1">
+
+            {/* CARRINHO */}
+            <button
+              type="button"
+              onClick={handleCart}
+              className="relative p-2 text-dourado-200 transition-transform active:scale-95"
+              aria-label={`Abrir carrinho${
+                quantidadeTotal > 0
+                  ? `, ${quantidadeTotal} ${
+                      quantidadeTotal === 1
+                        ? 'item'
+                        : 'itens'
+                    }`
+                  : ''
+              }`}
+            >
+              <ShoppingBag
+                className="w-[22px] h-[22px]"
+                strokeWidth={1.5}
+              />
+
+              {quantidadeTotal > 0 && (
+                <span className="absolute top-[2px] right-[1px] min-w-[16px] h-4 px-1 rounded-full bg-dourado-200 text-bordo-300 text-[9px] leading-none font-bold flex items-center justify-center border border-bordo-300">
+                  {quantidadeTotal > 99
+                    ? '99+'
+                    : quantidadeTotal}
+                </span>
+              )}
+            </button>
+
+            {/* MENU */}
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="p-2 -mr-2 text-dourado-200"
+              aria-label="Abrir menu"
+            >
+              <Menu
+                className="w-6 h-6"
+                strokeWidth={1.5}
+              />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -201,6 +248,7 @@ export function Header() {
               </span>
 
               <button
+                type="button"
                 onClick={() => setOpen(false)}
                 className="p-2 -mr-2 text-dourado-200"
                 aria-label="Fechar menu"
@@ -220,7 +268,10 @@ export function Header() {
                   className="border-b border-dourado-200/8"
                 >
                   <button
-                    onClick={() => handleNav(item.href)}
+                    type="button"
+                    onClick={() =>
+                      handleNav(item.href)
+                    }
                     className="w-full text-left py-4 font-serif text-2xl text-creme/90 hover:text-dourado-200 transition-colors duration-300"
                     style={{
                       animation: `fadeUp 0.4s ease-out ${
@@ -263,7 +314,6 @@ export function Header() {
                   </div>
                 </button>
               ) : (
-                /* LOGADO */
                 <div>
 
                   {/* PERFIL */}
@@ -271,8 +321,6 @@ export function Header() {
 
                     {/* AVATAR */}
                     <div className="relative w-12 h-12 rounded-full border border-dourado-200/30 bg-bordo-300 flex items-center justify-center overflow-hidden">
-
-                      {/* SOMENTE ADMIN RECEBE A CAVEIRINHA */}
                       {isAdmin ? (
                         <img
                           src={adminAvatar}
@@ -285,7 +333,6 @@ export function Header() {
                           strokeWidth={1.3}
                         />
                       )}
-
                     </div>
 
                     {/* NOME */}
@@ -325,7 +372,6 @@ export function Header() {
                       Painel administrativo
                     </button>
                   ) : (
-                    /* CLIENTE */
                     <button
                       type="button"
                       onClick={handleReview}
