@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  Sparkles,
-  MessageCircle,
+  Check,
   Loader2,
+  ShoppingBag,
+  Sparkles,
 } from 'lucide-react';
-import { buildWhatsAppLink } from '@/data/services';
 import { useReveal } from '@/hooks/useReveal';
 import { supabase } from '@/lib/supabase';
+import { addToCart } from '@/hooks/useCart';
 
 type PublicService = {
   id: number;
@@ -22,7 +23,9 @@ type PublicService = {
 export function Consultations() {
   const { ref, visible } = useReveal<HTMLDivElement>();
 
-  const [consultations, setConsultations] = useState<PublicService[]>([]);
+  const [consultations, setConsultations] = useState<
+    PublicService[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -100,7 +103,8 @@ export function Consultations() {
         </h2>
 
         <p className="font-serif text-[15px] text-creme/70 mt-3 max-w-[300px] leading-[160%]">
-          Para quem deseja explorar diferentes questões com mais liberdade e profundidade.
+          Para quem deseja explorar diferentes questões
+          com mais liberdade e profundidade.
         </p>
       </div>
 
@@ -135,9 +139,27 @@ function ConsultationCard({
   service: PublicService;
   delay: number;
 }) {
-  const { ref, visible } = useReveal<HTMLDivElement>();
+  const { ref, visible } =
+    useReveal<HTMLDivElement>();
+
+  const [added, setAdded] = useState(false);
 
   const price = formatPrice(service.preco);
+
+  function handleAddToCart() {
+    addToCart({
+      id: service.id,
+      nome: service.nome,
+      preco: Number(service.preco),
+      categoria: service.categoria,
+    });
+
+    setAdded(true);
+
+    window.setTimeout(() => {
+      setAdded(false);
+    }, 1500);
+  }
 
   return (
     <div
@@ -175,22 +197,33 @@ function ConsultationCard({
           {service.descricao}
         </p>
 
-        <a
-          href={buildWhatsAppLink(
-            service.nome,
-            price
-          )}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-dourado-200 text-bordo-300 font-semibold text-sm tracking-[0.1em] hover:bg-dourado-100 transition-all duration-300 active:scale-[0.97]"
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          className={`mt-6 w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold text-sm tracking-[0.1em] transition-all duration-300 active:scale-[0.97] ${
+            added
+              ? 'bg-dourado-200/15 border border-dourado-200/40 text-dourado-200'
+              : 'bg-dourado-200 text-bordo-300 hover:bg-dourado-100'
+          }`}
         >
-          <MessageCircle
-            className="w-4 h-4"
-            strokeWidth={2}
-          />
-
-          AGENDAR CONSULTA
-        </a>
+          {added ? (
+            <>
+              <Check
+                className="w-4 h-4"
+                strokeWidth={2}
+              />
+              ADICIONADO
+            </>
+          ) : (
+            <>
+              <ShoppingBag
+                className="w-4 h-4"
+                strokeWidth={2}
+              />
+              ADICIONAR AO CARRINHO
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
