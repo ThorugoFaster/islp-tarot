@@ -4,6 +4,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  ShoppingBag,
   ShieldCheck,
   Star,
   UserRound,
@@ -12,6 +13,7 @@ import {
 import type { User } from '@supabase/supabase-js';
 import { menuItems } from '@/data/services';
 import { supabase } from '@/lib/supabase';
+import { useCart } from '@/hooks/useCart';
 
 const adminAvatar = `${import.meta.env.BASE_URL}images/monster%20high.png`;
 
