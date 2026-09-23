@@ -4,14 +4,20 @@ import {
   EyeOff,
   Loader2,
   LockKeyhole,
-  Mail,
+  UserRound,
   X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+type LoginResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  error?: string;
+};
+
 export function LoginModal() {
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [senha, setSenha] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,47 +48,120 @@ export function LoginModal() {
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
 
-    if (!email.trim() || !senha) {
-      setErro('Preencha seu e-mail e sua senha.');
+    const cleanUsername = username
+      .trim()
+      .toLowerCase();
+
+    if (!cleanUsername || !senha) {
+      setErro('Preencha seu usuário e sua senha.');
       return;
     }
 
     setLoading(true);
     setErro('');
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: senha,
-    });
+    try {
+      /*
+        A Edge Function recebe usuário + senha.
 
-    if (error || !data.user) {
-      setLoading(false);
-      setErro('E-mail ou senha incorretos.');
-      return;
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
-
-    setLoading(false);
-
-    if (profileError || !profile) {
-      setErro('Não foi possível carregar sua conta.');
-      return;
-    }
-
-    setSenha('');
-    setOpen(false);
-
-    if (profile.role === 'admin') {
-      setTimeout(() => {
-        document.dispatchEvent(
-          new CustomEvent('open-admin-panel')
+        O e-mail verdadeiro da conta nunca precisa
+        ficar salvo no código público do site.
+      */
+      const { data, error } =
+        await supabase.functions.invoke<LoginResponse>(
+          'login-username',
+          {
+            body: {
+              username: cleanUsername,
+              password: senha,
+            },
+          }
         );
-      }, 150);
+
+      if (
+        error ||
+        !data?.access_token ||
+        !data?.refresh_token
+      ) {
+        setErro(
+          data?.error ||
+            'Usuário ou senha incorretos.'
+        );
+        return;
+      }
+
+      /*
+        A Edge Function devolve os tokens depois
+        de validar a senha.
+
+        Agora criamos a sessão normal do Supabase
+        no navegador.
+      */
+      const {
+        data: sessionData,
+        error: sessionError,
+      } = await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      });
+
+      if (
+        sessionError ||
+        !sessionData.user
+      ) {
+        setErro(
+          'Não foi possível iniciar sua sessão.'
+        );
+        return;
+      }
+
+      /*
+        Confirmamos o perfil e a função do usuário.
+      */
+      const {
+        data: profile,
+        error: profileError,
+      } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', sessionData.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+
+        setErro(
+          'Não foi possível carregar sua conta.'
+        );
+
+        return;
+      }
+
+      setSenha('');
+      setErro('');
+      setOpen(false);
+
+      /*
+        Se for administradora, abre o painel.
+      */
+      if (profile.role === 'admin') {
+        setTimeout(() => {
+          document.dispatchEvent(
+            new CustomEvent('open-admin-panel')
+          );
+        }, 150);
+      }
+    } catch (error) {
+      console.error(
+        'Erro ao realizar login:',
+        error
+      );
+
+      setErro(
+        'Não foi possível realizar o login.'
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -98,7 +177,10 @@ export function LoginModal() {
           aria-label="Fechar"
           className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-dourado-200/20 text-dourado-200/60"
         >
-          <X className="h-4 w-4" strokeWidth={1.5} />
+          <X
+            className="h-4 w-4"
+            strokeWidth={1.5}
+          />
         </button>
 
         <div className="mb-6 flex items-center justify-center gap-3">
@@ -129,21 +211,23 @@ export function LoginModal() {
 
           <div className="mt-8 space-y-4">
 
-            {/* EMAIL */}
+            {/* USUÁRIO */}
             <div className="flex items-center rounded-full border border-dourado-200/20 bg-bordo-200/60 px-4 focus-within:border-dourado-200/45">
-              <Mail
+              <UserRound
                 className="mr-3 h-4 w-4 text-dourado-200/40"
                 strokeWidth={1.4}
               />
 
               <input
-                type="email"
-                value={email}
+                type="text"
+                value={username}
                 onChange={(event) =>
-                  setEmail(event.target.value)
+                  setUsername(event.target.value)
                 }
-                placeholder="E-mail"
-                autoComplete="email"
+                placeholder="Usuário"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
                 className="h-12 w-full bg-transparent font-serif text-sm text-creme/80 outline-none placeholder:text-creme/30"
               />
             </div>
@@ -156,7 +240,11 @@ export function LoginModal() {
               />
 
               <input
-                type={showPassword ? 'text' : 'password'}
+                type={
+                  showPassword
+                    ? 'text'
+                    : 'password'
+                }
                 value={senha}
                 onChange={(event) =>
                   setSenha(event.target.value)
@@ -169,7 +257,14 @@ export function LoginModal() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowPassword(!showPassword)
+                  setShowPassword(
+                    !showPassword
+                  )
+                }
+                aria-label={
+                  showPassword
+                    ? 'Ocultar senha'
+                    : 'Mostrar senha'
                 }
                 className="ml-2 text-dourado-200/40"
               >
@@ -212,9 +307,11 @@ export function LoginModal() {
 
         <div className="flex items-center gap-3 mt-8">
           <div className="ornament-line flex-1" />
+
           <span className="text-dourado-200/35 text-[10px]">
             ✦
           </span>
+
           <div className="ornament-line flex-1" />
         </div>
       </div>
