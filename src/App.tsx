@@ -6,6 +6,7 @@ import { HowItWorks } from '@/components/HowItWorks';
 import { Testimonials } from '@/components/Testimonials';
 import { FinalCTA } from '@/components/FinalCTA';
 import { Footer } from '@/components/Footer';
+import { ReviewModal } from './components/ReviewModal';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <FinalCTA />
       </main>
       <Footer />
+      <ReviewModal />
     </div>
   );
 }
