@@ -5,6 +5,7 @@ import {
   Edit3,
   Gamepad2,
   Loader2,
+  PackageCheck,
   Plus,
   RefreshCw,
   Save,
@@ -47,7 +48,42 @@ type ServiceForm = {
 };
 
 type Filter = 'pendente' | 'aprovada' | 'rejeitada';
-type AdminTab = 'avaliacoes' | 'jogos';
+type AdminTab = 'avaliacoes' | 'jogos' | 'pedidos';
+
+type OrderItem = {
+  id: number;
+  service_name: string;
+  category: 'consulta' | 'tiragem';
+  unit_price: number;
+  quantity: number;
+  total_price: number;
+  question: string | null;
+  duration_minutes: number | null;
+};
+
+type Order = {
+  id: number;
+  user_id: string;
+  status:
+    | 'rascunho'
+    | 'aguardando_pagamento'
+    | 'pago'
+    | 'em_atendimento'
+    | 'finalizado'
+    | 'cancelado';
+  payment_status:
+    | 'pendente'
+    | 'pago'
+    | 'falhou'
+    | 'cancelado'
+    | 'reembolsado';
+  total: number;
+  appointment_start_at: string | null;
+  appointment_end_at: string | null;
+  duration_minutes: number | null;
+  created_at: string;
+  order_items?: OrderItem[];
+};
 
 const emptyServiceForm: ServiceForm = {
   nome: '',
@@ -67,6 +103,7 @@ export function AdminPanel() {
   const [filter, setFilter] = useState<Filter>('pendente');
 
   const [services, setServices] = useState<Service[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState<number | null>(null);
@@ -108,8 +145,10 @@ export function AdminPanel() {
 
     if (tab === 'avaliacoes') {
       loadReviews();
-    } else {
+    } else if (tab === 'jogos') {
       loadServices();
+    } else {
+      loadOrders();
     }
   }, [open, tab, filter]);
 
@@ -171,6 +210,188 @@ export function AdminPanel() {
     }
 
     setLoading(false);
+  }
+
+  async function loadOrders() {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        id,
+        user_id,
+        status,
+        payment_status,
+        total,
+        appointment_start_at,
+        appointment_end_at,
+        duration_minutes,
+        created_at,
+        order_items (
+          id,
+          service_name,
+          category,
+          unit_price,
+          quantity,
+          total_price,
+          question,
+          duration_minutes
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      setOrders([]);
+      setError(
+        'Não foi possível carregar os pedidos.'
+      );
+    } else {
+      setOrders((data ?? []) as Order[]);
+    }
+
+    setLoading(false);
+  }
+
+  async function confirmOrderPayment(order: Order) {
+    const confirmed = window.confirm(
+      `Confirmar o pagamento do pedido #${order.id}?`
+    );
+
+    if (!confirmed) return;
+
+    setActionId(order.id);
+    setError('');
+    setSuccess('');
+
+    const { error: orderError } = await supabase
+      .from('orders')
+      .update({
+        status: 'pago',
+        payment_status: 'pago',
+        paid_at: new Date().toISOString(),
+      })
+      .eq('id', order.id);
+
+    if (orderError) {
+      console.error(orderError);
+      setError(
+        'Não foi possível confirmar o pagamento.'
+      );
+      setActionId(null);
+      return;
+    }
+
+    const { error: appointmentError } =
+      await supabase
+        .from('appointments')
+        .update({
+          status: 'confirmado',
+        })
+        .eq('order_id', order.id);
+
+    if (appointmentError) {
+      console.error(appointmentError);
+
+      /*
+        Reverte o pedido para não deixar pagamento
+        confirmado com agenda ainda não confirmada.
+      */
+      await supabase
+        .from('orders')
+        .update({
+          status: 'aguardando_pagamento',
+          payment_status: 'pendente',
+          paid_at: null,
+        })
+        .eq('id', order.id);
+
+      setError(
+        'Não foi possível confirmar o horário. O pedido não foi alterado.'
+      );
+      setActionId(null);
+      return;
+    }
+
+    setSuccess(
+      `Pagamento do pedido #${order.id} confirmado ✦`
+    );
+
+    await loadOrders();
+    setActionId(null);
+  }
+
+  async function cancelOrder(order: Order) {
+    const confirmed = window.confirm(
+      `Cancelar o pedido #${order.id}?\n\nO horário reservado será liberado novamente no site.`
+    );
+
+    if (!confirmed) return;
+
+    setActionId(order.id);
+    setError('');
+    setSuccess('');
+
+    const { error: appointmentError } =
+      await supabase
+        .from('appointments')
+        .update({
+          status: 'cancelado',
+        })
+        .eq('order_id', order.id);
+
+    if (appointmentError) {
+      console.error(appointmentError);
+      setError(
+        'Não foi possível liberar o horário deste pedido.'
+      );
+      setActionId(null);
+      return;
+    }
+
+    const { error: orderError } = await supabase
+      .from('orders')
+      .update({
+        status: 'cancelado',
+        payment_status:
+          order.payment_status === 'pago'
+            ? 'reembolsado'
+            : 'cancelado',
+      })
+      .eq('id', order.id);
+
+    if (orderError) {
+      console.error(orderError);
+
+      /*
+        Se o pedido não puder ser cancelado,
+        tentamos devolver a reserva ao estado anterior.
+      */
+      await supabase
+        .from('appointments')
+        .update({
+          status:
+            order.payment_status === 'pago'
+              ? 'confirmado'
+              : 'reservado',
+        })
+        .eq('order_id', order.id);
+
+      setError(
+        'Não foi possível cancelar o pedido.'
+      );
+      setActionId(null);
+      return;
+    }
+
+    setSuccess(
+      `Pedido #${order.id} cancelado. O horário foi liberado.`
+    );
+
+    await loadOrders();
+    setActionId(null);
   }
 
   async function updateReview(
@@ -527,7 +748,7 @@ export function AdminPanel() {
             </section>
 
             {/* ABAS */}
-            <div className="grid grid-cols-2 gap-2 mt-7">
+            <div className="grid grid-cols-3 gap-2 mt-7">
               <button
                 type="button"
                 onClick={() => {
@@ -569,6 +790,28 @@ export function AdminPanel() {
                     strokeWidth={1.4}
                   />
                   Jogos
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('pedidos');
+                  setError('');
+                  setSuccess('');
+                }}
+                className={`rounded-xl border py-3 font-serif text-[10px] transition ${
+                  tab === 'pedidos'
+                    ? 'border-dourado-200/45 bg-dourado-200/10 text-dourado-200'
+                    : 'border-dourado-200/15 text-creme/40'
+                }`}
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  <PackageCheck
+                    className="w-4 h-4"
+                    strokeWidth={1.4}
+                  />
+                  Pedidos
                 </span>
               </button>
             </div>
@@ -1040,6 +1283,267 @@ export function AdminPanel() {
                   )}
               </>
             )}
+
+            {/* ============================
+                PEDIDOS
+            ============================ */}
+
+            {tab === 'pedidos' && (
+              <>
+                <div className="flex items-end justify-between mt-9 mb-5">
+                  <div>
+                    <p className="font-serif text-[10px] tracking-[0.22em] text-dourado-200/45 uppercase">
+                      Gerenciamento
+                    </p>
+
+                    <h2 className="font-serif text-2xl text-creme/90 mt-1">
+                      Pedidos
+                    </h2>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={loadOrders}
+                    disabled={loading}
+                    className="w-9 h-9 rounded-full border border-dourado-200/20 flex items-center justify-center text-dourado-200/60 disabled:opacity-40"
+                    aria-label="Atualizar pedidos"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 ${
+                        loading ? 'animate-spin' : ''
+                      }`}
+                      strokeWidth={1.4}
+                    />
+                  </button>
+                </div>
+
+                <Messages
+                  error={error}
+                  success={success}
+                />
+
+                {loading && <Loading />}
+
+                {!loading && orders.length === 0 && (
+                  <div className="py-16 flex flex-col items-center text-center">
+                    <PackageCheck
+                      className="w-7 h-7 text-dourado-200/30"
+                      strokeWidth={1.3}
+                    />
+
+                    <p className="font-serif text-sm text-creme/45 mt-4">
+                      Nenhum pedido encontrado.
+                    </p>
+                  </div>
+                )}
+
+                {!loading && orders.length > 0 && (
+                  <div className="flex flex-col gap-4 mt-6">
+                    {orders.map((order) => {
+                      const processing =
+                        actionId === order.id;
+
+                      const canConfirm =
+                        order.status !== 'cancelado' &&
+                        order.payment_status !== 'pago';
+
+                      const canCancel =
+                        order.status !== 'cancelado';
+
+                      return (
+                        <article
+                          key={order.id}
+                          className="rounded-2xl border border-dourado-200/20 bg-bordo-200/45 p-5"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-serif text-[9px] tracking-[0.16em] text-dourado-200/50 uppercase">
+                                Pedido
+                              </p>
+
+                              <h3 className="mt-1 font-serif text-xl text-creme/90">
+                                #{order.id}
+                              </h3>
+                            </div>
+
+                            <OrderStatus
+                              status={order.status}
+                              paymentStatus={
+                                order.payment_status
+                              }
+                            />
+                          </div>
+
+                          <div className="mt-5 space-y-3">
+                            {(order.order_items ?? []).map(
+                              (item) => (
+                                <div
+                                  key={item.id}
+                                  className="rounded-xl border border-dourado-200/10 bg-bordo-300/35 p-4"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-serif text-sm text-creme/85">
+                                        {item.service_name}
+                                      </p>
+
+                                      <p className="mt-1 font-serif text-[10px] text-creme/35">
+                                        {item.category ===
+                                        'consulta'
+                                          ? 'Consulta'
+                                          : 'Tiragem'}
+                                        {item.quantity > 1
+                                          ? ` • ${item.quantity}x`
+                                          : ''}
+                                      </p>
+                                    </div>
+
+                                    <span className="font-serif text-xs text-dourado-200/75 whitespace-nowrap">
+                                      {Number(
+                                        item.total_price
+                                      ).toLocaleString(
+                                        'pt-BR',
+                                        {
+                                          style:
+                                            'currency',
+                                          currency:
+                                            'BRL',
+                                        }
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  {item.question && (
+                                    <div className="mt-3 border-t border-dourado-200/10 pt-3">
+                                      <p className="font-serif text-[9px] tracking-[0.12em] text-dourado-200/45 uppercase">
+                                        Pergunta
+                                      </p>
+
+                                      <p className="mt-1.5 font-serif text-xs leading-relaxed text-creme/65">
+                                        {item.question}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            )}
+                          </div>
+
+                          <div className="mt-5 grid grid-cols-2 gap-3 rounded-xl border border-dourado-200/10 bg-bordo-300/25 p-4">
+                            <div>
+                              <p className="font-serif text-[9px] text-creme/30 uppercase">
+                                Data
+                              </p>
+
+                              <p className="mt-1 font-serif text-xs text-creme/70">
+                                {formatOrderDate(
+                                  order.appointment_start_at
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="font-serif text-[9px] text-creme/30 uppercase">
+                                Horário
+                              </p>
+
+                              <p className="mt-1 font-serif text-xs text-creme/70">
+                                {formatOrderTime(
+                                  order.appointment_start_at
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="font-serif text-[9px] text-creme/30 uppercase">
+                                Duração
+                              </p>
+
+                              <p className="mt-1 font-serif text-xs text-creme/70">
+                                {formatDuration(
+                                  order.duration_minutes
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="font-serif text-[9px] text-creme/30 uppercase">
+                                Total
+                              </p>
+
+                              <p className="mt-1 font-serif text-sm text-dourado-200">
+                                {Number(
+                                  order.total
+                                ).toLocaleString(
+                                  'pt-BR',
+                                  {
+                                    style:
+                                      'currency',
+                                    currency: 'BRL',
+                                  }
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <p className="mt-3 font-serif text-[9px] text-creme/25">
+                            Criado em{' '}
+                            {new Date(
+                              order.created_at
+                            ).toLocaleString(
+                              'pt-BR',
+                              {
+                                timeZone:
+                                  'America/Sao_Paulo',
+                              }
+                            )}
+                          </p>
+
+                          {canConfirm && (
+                            <button
+                              type="button"
+                              disabled={processing}
+                              onClick={() =>
+                                confirmOrderPayment(
+                                  order
+                                )
+                              }
+                              className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl border border-dourado-200/35 bg-dourado-200/10 px-4 py-3.5 font-serif text-xs text-dourado-200 disabled:opacity-40"
+                            >
+                              <Check className="w-4 h-4" />
+                              Confirmar pagamento
+                            </button>
+                          )}
+
+                          {canCancel && (
+                            <button
+                              type="button"
+                              disabled={processing}
+                              onClick={() =>
+                                cancelOrder(order)
+                              }
+                              className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl border border-red-300/15 px-4 py-3 font-serif text-xs text-red-300/65 disabled:opacity-40"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              Cancelar pedido
+                            </button>
+                          )}
+
+                          {order.status ===
+                            'cancelado' && (
+                            <p className="mt-5 text-center font-serif text-xs text-creme/35">
+                              Pedido cancelado • horário
+                              liberado
+                            </p>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
           </main>
         </div>
       </div>
@@ -1249,6 +1753,79 @@ export function AdminPanel() {
 /* =========================================================
    COMPONENTES AUXILIARES
 ========================================================= */
+
+function formatOrderDate(value: string | null) {
+  if (!value) return '—';
+
+  return new Date(value).toLocaleDateString(
+    'pt-BR',
+    {
+      timeZone: 'America/Sao_Paulo',
+    }
+  );
+}
+
+function formatOrderTime(value: string | null) {
+  if (!value) return '—';
+
+  return new Date(value).toLocaleTimeString(
+    'pt-BR',
+    {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+    }
+  );
+}
+
+function formatDuration(
+  minutes: number | null
+) {
+  if (!minutes) return '—';
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  if (hours > 0 && rest > 0) {
+    return `${hours}h ${rest}min`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+
+  return `${rest} min`;
+}
+
+function OrderStatus({
+  status,
+  paymentStatus,
+}: {
+  status: Order['status'];
+  paymentStatus: Order['payment_status'];
+}) {
+  if (status === 'cancelado') {
+    return (
+      <span className="rounded-full border border-red-300/20 bg-red-300/5 px-3 py-1.5 font-serif text-[9px] text-red-300/70 uppercase">
+        Cancelado
+      </span>
+    );
+  }
+
+  if (paymentStatus === 'pago') {
+    return (
+      <span className="rounded-full border border-dourado-200/30 bg-dourado-200/10 px-3 py-1.5 font-serif text-[9px] text-dourado-200 uppercase">
+        Pago ✓
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full border border-dourado-200/15 px-3 py-1.5 font-serif text-[9px] text-creme/45 uppercase">
+      Aguardando
+    </span>
+  );
+}
 
 function Loading() {
   return (
