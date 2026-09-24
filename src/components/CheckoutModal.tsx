@@ -92,6 +92,7 @@ export function CheckoutModal() {
     items,
     quantidadeTotal,
     valorTotal,
+    removeFromCart,
   } = useCart();
 
   const questionFields =
@@ -701,6 +702,34 @@ export function CheckoutModal() {
             data.order.endAt,
         })
       );
+
+      /*
+        O pedido já foi criado e o horário já foi
+        reservado no banco. Só agora limpamos o
+        carrinho — nunca antes do sucesso.
+      */
+      items.forEach((item) => {
+        removeFromCart(item.id);
+      });
+
+      /*
+        Também removemos os dados temporários do
+        checkout para que um próximo pedido comece
+        realmente do zero.
+      */
+      sessionStorage.removeItem(
+        QUESTIONS_STORAGE_KEY
+      );
+
+      sessionStorage.removeItem(
+        CHECKOUT_STORAGE_KEY
+      );
+
+      setAnswers({});
+      setSelectedDate('');
+      setSelectedSlot(null);
+      setSlots([]);
+      setDurationMinutes(0);
 
       console.log(
         'Pedido criado com sucesso:',
