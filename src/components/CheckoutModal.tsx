@@ -79,6 +79,15 @@ export function CheckoutModal() {
   const [loadingSlots, setLoadingSlots] =
     useState(false);
 
+  const [creatingOrder, setCreatingOrder] =
+    useState(false);
+
+  const [orderError, setOrderError] =
+    useState('');
+
+  const [createdOrderId, setCreatedOrderId] =
+    useState<number | null>(null);
+
   const {
     items,
     quantidadeTotal,
@@ -555,37 +564,160 @@ export function CheckoutModal() {
     setStep('review');
   }
 
-  function handleProceedToPayment() {
-    /*
-      PRÓXIMA ETAPA:
+  async function handleProceedToPayment() {
+    if (creatingOrder) return;
 
-      Aqui NÃO vamos criar o pagamento
-      diretamente pelo navegador.
+    if (!selectedSlot) {
+      setOrderError(
+        'O horário selecionado não foi encontrado. Volte ao agendamento e escolha novamente.'
+      );
+      return;
+    }
 
-      Vamos criar o pedido com uma
-      Edge Function segura, recalculando:
+    setCreatingOrder(true);
+    setOrderError('');
 
-      - serviços
-      - preços
-      - duração
-      - horário
-      - disponibilidade
+    try {
+      const {
+        data: sessionData,
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      Depois a função criará o checkout
-      no provedor de pagamento.
-    */
-
-    console.log(
-      'Checkout pronto para pagamento',
-      {
-        items,
-        questions:
-          buildCheckoutQuestions(),
-        durationMinutes,
-        selectedDate,
-        selectedSlot,
+      if (
+        sessionError ||
+        !sessionData.session
+      ) {
+        setOrderError(
+          'Sua sessão expirou. Entre novamente para continuar.'
+        );
+        return;
       }
-    );
+
+      const requestItems = items.map(
+        (item) => ({
+          serviceId: item.id,
+          quantity: item.quantidade,
+        })
+      );
+
+      const requestQuestions =
+        buildCheckoutQuestions().map(
+          (question) => ({
+            serviceId:
+              question.serviceId,
+
+            itemNumber:
+              question.itemNumber,
+
+            question:
+              question.question,
+          })
+        );
+
+      const {
+        data,
+        error: functionError,
+      } = await supabase.functions.invoke(
+        'create-order',
+        {
+          body: {
+            items: requestItems,
+            questions:
+              requestQuestions,
+
+            startAt:
+              selectedSlot.start_at,
+          },
+        }
+      );
+
+      if (functionError) {
+        console.error(
+          'Erro create-order:',
+          functionError
+        );
+
+        let message =
+          'Não foi possível criar o pedido. Tente novamente.';
+
+        try {
+          const context =
+            (
+              functionError as {
+                context?: Response;
+              }
+            ).context;
+
+          if (context) {
+            const responseBody =
+              await context.clone().json();
+
+            if (
+              responseBody?.error &&
+              typeof responseBody.error ===
+                'string'
+            ) {
+              message =
+                responseBody.error;
+            }
+          }
+        } catch {
+          // Mantém mensagem padrão.
+        }
+
+        setOrderError(message);
+        return;
+      }
+
+      if (
+        !data?.success ||
+        !data?.order?.id
+      ) {
+        setOrderError(
+          data?.error ||
+            'O pedido não pôde ser criado.'
+        );
+        return;
+      }
+
+      const orderId =
+        Number(data.order.id);
+
+      setCreatedOrderId(orderId);
+
+      sessionStorage.setItem(
+        'islp-created-order',
+        JSON.stringify({
+          orderId,
+          total:
+            data.order.total,
+          status:
+            data.order.status,
+          paymentStatus:
+            data.order.paymentStatus,
+          startAt:
+            data.order.startAt,
+          endAt:
+            data.order.endAt,
+        })
+      );
+
+      console.log(
+        'Pedido criado com sucesso:',
+        data.order
+      );
+    } catch (err) {
+      console.error(
+        'Erro inesperado ao criar pedido:',
+        err
+      );
+
+      setOrderError(
+        'Não foi possível criar o pedido. Verifique sua conexão e tente novamente.'
+      );
+    } finally {
+      setCreatingOrder(false);
+    }
   }
 
   if (!open) return null;
@@ -837,25 +969,73 @@ export function CheckoutModal() {
 
           {step === 'review' && (
             <>
-              <button
-                type="button"
-                onClick={
-                  handleProceedToPayment
-                }
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-dourado-200 px-6 py-4 font-serif text-[11px] font-semibold tracking-[0.18em] text-bordo-300 transition active:scale-[0.99]"
-              >
-                IR PARA PAGAMENTO
+              {createdOrderId ? (
+                <div className="rounded-2xl border border-dourado-200/25 bg-dourado-200/5 p-5 text-center">
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-dourado-200/10">
+                    <Check
+                      className="h-5 w-5 text-dourado-200"
+                      strokeWidth={1.8}
+                    />
+                  </div>
 
-                <ChevronRight
-                  className="h-4 w-4"
-                  strokeWidth={1.8}
-                />
-              </button>
+                  <p className="mt-3 font-serif text-sm text-creme/80">
+                    Pedido criado com sucesso
+                  </p>
 
-              <FooterMessage>
-                Confira os dados antes
-                de continuar.
-              </FooterMessage>
+                  <p className="mt-1 font-serif text-xs text-dourado-200/70">
+                    Pedido #{createdOrderId}
+                  </p>
+
+                  <p className="mt-3 font-serif text-[10px] leading-relaxed text-creme/30">
+                    Nesta etapa de teste nenhuma
+                    cobrança foi realizada.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={creatingOrder}
+                    onClick={
+                      handleProceedToPayment
+                    }
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-dourado-200 px-6 py-4 font-serif text-[11px] font-semibold tracking-[0.18em] text-bordo-300 transition active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {creatingOrder ? (
+                      <>
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          strokeWidth={1.7}
+                        />
+
+                        CRIANDO PEDIDO...
+                      </>
+                    ) : (
+                      <>
+                        CRIAR PEDIDO DE TESTE
+
+                        <ChevronRight
+                          className="h-4 w-4"
+                          strokeWidth={1.8}
+                        />
+                      </>
+                    )}
+                  </button>
+
+                  <FooterMessage>
+                    Nenhuma cobrança será realizada
+                    neste teste.
+                  </FooterMessage>
+                </>
+              )}
+
+              {orderError && (
+                <div className="mt-4 rounded-2xl border border-red-300/15 bg-red-500/5 px-4 py-3">
+                  <p className="text-center font-serif text-xs leading-relaxed text-red-300/80">
+                    {orderError}
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>
