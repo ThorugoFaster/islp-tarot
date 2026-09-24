@@ -11,12 +11,12 @@ import { AdminPanel } from '@/components/AdminPanel';
 import { LoginModal } from '@/components/LoginModal';
 import { CartDrawer } from '@/components/CartDrawer';
 import { CheckoutModal } from '@/components/CheckoutModal';
+import { MyOrders } from '@/components/MyOrders';
 
 function App() {
   return (
     <div className="w-full max-w-[480px] mx-auto bg-bordo-300 min-h-screen overflow-x-hidden">
       <Header />
-
       <main>
         <Hero />
         <Consultations />
@@ -25,13 +25,12 @@ function App() {
         <Testimonials />
         <FinalCTA />
       </main>
-
       <Footer />
-
       <ReviewModal />
       <LoginModal />
       <CartDrawer />
       <CheckoutModal />
+      <MyOrders />
       <AdminPanel />
     </div>
   );
