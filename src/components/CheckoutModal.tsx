@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Clock3,
   Loader2,
+  MessageCircle,
   MessageCircleQuestion,
   ShoppingBag,
   Sparkles,
@@ -48,6 +49,24 @@ const CHECKOUT_STORAGE_KEY =
 const SAO_PAULO_TIMEZONE =
   'America/Sao_Paulo';
 
+const ISIS_WHATSAPP = '5513996798449';
+
+type CreatedOrderWhatsApp = {
+  orderId: number;
+  total: number;
+  startAt: string;
+  endAt: string;
+  customerName: string;
+  customerUsername: string;
+  customerPhone: string;
+  items: {
+    serviceName: string;
+    quantity: number;
+    totalPrice: number;
+    questions: string[];
+  }[];
+};
+
 export function CheckoutModal() {
   const [open, setOpen] = useState(false);
 
@@ -88,6 +107,9 @@ export function CheckoutModal() {
   const [createdOrderId, setCreatedOrderId] =
     useState<number | null>(null);
 
+  const [createdOrderWhatsApp, setCreatedOrderWhatsApp] =
+    useState<CreatedOrderWhatsApp | null>(null);
+
   const {
     items,
     quantidadeTotal,
@@ -127,6 +149,9 @@ export function CheckoutModal() {
   useEffect(() => {
     function handleOpenCheckout() {
       setError('');
+      setOrderError('');
+      setCreatedOrderId(null);
+      setCreatedOrderWhatsApp(null);
       setStep('summary');
 
       try {
@@ -565,6 +590,99 @@ export function CheckoutModal() {
     setStep('review');
   }
 
+  function openOrderWhatsApp(
+    order: CreatedOrderWhatsApp
+  ) {
+    const date = new Date(
+      order.startAt
+    ).toLocaleDateString('pt-BR', {
+      timeZone: SAO_PAULO_TIMEZONE,
+    });
+
+    const startTime = new Date(
+      order.startAt
+    ).toLocaleTimeString('pt-BR', {
+      timeZone: SAO_PAULO_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const endTime = new Date(
+      order.endAt
+    ).toLocaleTimeString('pt-BR', {
+      timeZone: SAO_PAULO_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const lines = [
+      '🔮 *NOVO PEDIDO — ISLP TAROT*',
+      '',
+      `Pedido: #${order.orderId}`,
+      order.customerName
+        ? `Cliente: ${order.customerName}`
+        : '',
+      order.customerUsername
+        ? `Usuário: @${order.customerUsername}`
+        : '',
+      order.customerPhone
+        ? `WhatsApp: ${formatBrazilPhone(order.customerPhone)}`
+        : '',
+      '',
+      '*ATENDIMENTO*',
+    ].filter(Boolean);
+
+    order.items.forEach(
+      (item, index) => {
+        lines.push(
+          '',
+          `${index + 1}. ${item.serviceName}${
+            item.quantity > 1
+              ? ` (${item.quantity}x)`
+              : ''
+          }`,
+          `Valor: ${formatPrice(
+            item.totalPrice
+          )}`
+        );
+
+        item.questions.forEach(
+          (question, questionIndex) => {
+            if (!question.trim()) return;
+
+            lines.push(
+              `Pergunta${
+                item.questions.length > 1
+                  ? ` ${questionIndex + 1}`
+                  : ''
+              }: ${question.trim()}`
+            );
+          }
+        );
+      }
+    );
+
+    lines.push(
+      '',
+      `Total: ${formatPrice(order.total)}`,
+      `Data: ${date}`,
+      `Horário: ${startTime} às ${endTime}`,
+      '',
+      'Olá! Gostaria de finalizar o pagamento deste pedido. ✨'
+    );
+
+    const url =
+      `https://wa.me/${ISIS_WHATSAPP}?text=${encodeURIComponent(
+        lines.join('\\n')
+      )}`;
+
+    window.open(
+      url,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  }
+
   async function handleProceedToPayment() {
     if (creatingOrder) return;
 
@@ -577,6 +695,19 @@ export function CheckoutModal() {
 
     setCreatingOrder(true);
     setOrderError('');
+
+    const checkoutItems = items.map(
+      (item) => ({
+        id: item.id,
+        serviceName: item.nome,
+        quantity: item.quantidade,
+        totalPrice:
+          item.preco * item.quantidade,
+      })
+    );
+
+    const checkoutQuestions =
+      buildCheckoutQuestions();
 
     try {
       const {
@@ -602,7 +733,7 @@ export function CheckoutModal() {
       );
 
       const requestQuestions =
-        buildCheckoutQuestions().map(
+        checkoutQuestions.map(
           (question) => ({
             serviceId:
               question.serviceId,
@@ -684,7 +815,59 @@ export function CheckoutModal() {
       const orderId =
         Number(data.order.id);
 
+      const { data: profileData } =
+        await supabase
+          .from('profiles')
+          .select(
+            'nome, username, telefone'
+          )
+          .eq(
+            'id',
+            sessionData.session.user.id
+          )
+          .maybeSingle();
+
+      const whatsappOrder: CreatedOrderWhatsApp = {
+        orderId,
+        total: Number(data.order.total),
+        startAt:
+          data.order.startAt ||
+          selectedSlot.start_at,
+        endAt:
+          data.order.endAt ||
+          selectedSlot.end_at,
+        customerName:
+          profileData?.nome || '',
+        customerUsername:
+          profileData?.username || '',
+        customerPhone:
+          profileData?.telefone || '',
+        items: checkoutItems.map(
+          (item) => ({
+            serviceName:
+              item.serviceName,
+            quantity: item.quantity,
+            totalPrice:
+              item.totalPrice,
+            questions:
+              checkoutQuestions
+                .filter(
+                  (question) =>
+                    question.serviceId ===
+                    item.id
+                )
+                .map(
+                  (question) =>
+                    question.question
+                ),
+          })
+        ),
+      };
+
       setCreatedOrderId(orderId);
+      setCreatedOrderWhatsApp(
+        whatsappOrder
+      );
 
       sessionStorage.setItem(
         'islp-created-order',
@@ -1015,9 +1198,38 @@ export function CheckoutModal() {
                     Pedido #{createdOrderId}
                   </p>
 
-                  <p className="mt-3 font-serif text-[10px] leading-relaxed text-creme/30">
-                    Nesta etapa de teste nenhuma
-                    cobrança foi realizada.
+                  <p className="mt-3 font-serif text-[10px] leading-relaxed text-creme/40">
+                    Seu horário foi reservado.
+                    Agora envie o pedido pelo
+                    WhatsApp para receber as opções
+                    de pagamento.
+                  </p>
+
+                  <button
+                    type="button"
+                    disabled={!createdOrderWhatsApp}
+                    onClick={() => {
+                      if (
+                        createdOrderWhatsApp
+                      ) {
+                        openOrderWhatsApp(
+                          createdOrderWhatsApp
+                        );
+                      }
+                    }}
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-dourado-200 px-5 py-3.5 font-serif text-[10px] font-semibold tracking-[0.12em] text-bordo-300 disabled:opacity-40"
+                  >
+                    <MessageCircle
+                      className="h-4 w-4"
+                      strokeWidth={1.7}
+                    />
+                    FINALIZAR PELO WHATSAPP
+                  </button>
+
+                  <p className="mt-3 font-serif text-[9px] leading-relaxed text-creme/30">
+                    O pagamento será confirmado
+                    manualmente pela Isis após o
+                    envio do comprovante.
                   </p>
                 </div>
               ) : (
@@ -1041,7 +1253,7 @@ export function CheckoutModal() {
                       </>
                     ) : (
                       <>
-                        CRIAR PEDIDO DE TESTE
+                        RESERVAR HORÁRIO
 
                         <ChevronRight
                           className="h-4 w-4"
@@ -1052,8 +1264,8 @@ export function CheckoutModal() {
                   </button>
 
                   <FooterMessage>
-                    Nenhuma cobrança será realizada
-                    neste teste.
+                    O pagamento será combinado pelo
+                    WhatsApp após a reserva.
                   </FooterMessage>
                 </>
               )}
@@ -1076,6 +1288,25 @@ export function CheckoutModal() {
 /* =========================================================
    RESUMO
 ========================================================= */
+
+function formatBrazilPhone(
+  value: string
+) {
+  const digits = value.replace(/\D/g, '');
+  const local =
+    digits.startsWith('55')
+      ? digits.slice(2)
+      : digits;
+
+  if (local.length !== 11) {
+    return value;
+  }
+
+  return `(${local.slice(0, 2)}) ${local.slice(
+    2,
+    7
+  )}-${local.slice(7)}`;
+}
 
 function SummaryStep({
   items,
