@@ -53,6 +53,14 @@ type ServiceForm = {
 type Filter = 'pendente' | 'aprovada' | 'rejeitada';
 type AdminTab = 'avaliacoes' | 'jogos' | 'pedidos' | 'agenda';
 
+type AvailabilityDay = {
+  id: number;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  active: boolean;
+};
+
 type Appointment = {
   id: number;
   order_id: number;
@@ -132,6 +140,9 @@ export function AdminPanel() {
     getTodayInSaoPaulo()
   );
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [availabilityDays, setAvailabilityDays] = useState<AvailabilityDay[]>([]);
+  const [showAvailabilitySettings, setShowAvailabilitySettings] = useState(false);
+  const [savingAvailabilityDay, setSavingAvailabilityDay] = useState<number | null>(null);
   const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const [agendaStartTime, setAgendaStartTime] = useState('10:00');
   const [agendaEndTime, setAgendaEndTime] = useState('10:30');
@@ -262,6 +273,7 @@ export function AdminPanel() {
     const [
       appointmentsResult,
       blocksResult,
+      availabilityResult,
     ] = await Promise.all([
       supabase
         .from('appointments')
@@ -281,6 +293,13 @@ export function AdminPanel() {
         .lt('start_at', endIso)
         .gt('end_at', startIso)
         .order('start_at', { ascending: true }),
+
+      supabase
+        .from('availability')
+        .select(
+          'id, day_of_week, start_time, end_time, active'
+        )
+        .order('day_of_week', { ascending: true }),
     ]);
 
     if (appointmentsResult.error) {
@@ -311,7 +330,90 @@ export function AdminPanel() {
       );
     }
 
+    if (availabilityResult.error) {
+      console.error(
+        availabilityResult.error
+      );
+      setError(
+        'Não foi possível carregar os horários de atendimento.'
+      );
+      setAvailabilityDays([]);
+    } else {
+      setAvailabilityDays(
+        (availabilityResult.data ??
+          []) as AvailabilityDay[]
+      );
+    }
+
     setLoading(false);
+  }
+
+  function updateAvailabilityLocal(
+    dayOfWeek: number,
+    changes: Partial<
+      Pick<
+        AvailabilityDay,
+        'start_time' | 'end_time' | 'active'
+      >
+    >
+  ) {
+    setAvailabilityDays((current) =>
+      current.map((day) =>
+        day.day_of_week === dayOfWeek
+          ? { ...day, ...changes }
+          : day
+      )
+    );
+  }
+
+  async function saveAvailabilityDay(
+    day: AvailabilityDay
+  ) {
+    setError('');
+    setSuccess('');
+
+    if (
+      day.active &&
+      day.end_time <= day.start_time
+    ) {
+      setError(
+        `${getWeekdayName(day.day_of_week)}: o horário final precisa ser depois do horário inicial.`
+      );
+      return;
+    }
+
+    setSavingAvailabilityDay(
+      day.day_of_week
+    );
+
+    const { error } = await supabase
+      .from('availability')
+      .update({
+        active: day.active,
+        start_time: normalizeTimeForDatabase(
+          day.start_time
+        ),
+        end_time: normalizeTimeForDatabase(
+          day.end_time
+        ),
+      })
+      .eq('id', day.id);
+
+    if (error) {
+      console.error(error);
+      setError(
+        `Não foi possível salvar ${getWeekdayName(day.day_of_week)}.`
+      );
+      setSavingAvailabilityDay(null);
+      await loadAgenda();
+      return;
+    }
+
+    setSuccess(
+      `${getWeekdayName(day.day_of_week)} atualizado com sucesso ✦`
+    );
+    setSavingAvailabilityDay(null);
+    await loadAgenda();
   }
 
   async function createScheduleBlock() {
@@ -1868,6 +1970,196 @@ export function AdminPanel() {
                   </p>
                 </div>
 
+                <section className="mt-5 rounded-2xl border border-dourado-200/20 bg-bordo-200/35 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowAvailabilitySettings(
+                        (current) => !current
+                      )
+                    }
+                    className="w-full flex items-center justify-between gap-4 p-5 text-left"
+                  >
+                    <div>
+                      <p className="font-serif text-[10px] tracking-[0.18em] text-dourado-200/50 uppercase">
+                        Horários de atendimento
+                      </p>
+
+                      <p className="mt-1 font-serif text-sm text-creme/75">
+                        Configurar semana
+                      </p>
+                    </div>
+
+                    <span className="font-serif text-lg text-dourado-200/55">
+                      {showAvailabilitySettings
+                        ? '−'
+                        : '+'}
+                    </span>
+                  </button>
+
+                  {showAvailabilitySettings && (
+                    <div className="border-t border-dourado-200/10 px-4 pb-4">
+                      <p className="py-4 font-serif text-[11px] leading-relaxed text-creme/35">
+                        Ative os dias em que você
+                        atende e defina o horário de
+                        início e fim. As alterações
+                        afetam os horários disponíveis
+                        para clientes.
+                      </p>
+
+                      <div className="space-y-3">
+                        {[1, 2, 3, 4, 5, 6, 0].map(
+                          (dayOfWeek) => {
+                            const day =
+                              availabilityDays.find(
+                                (item) =>
+                                  item.day_of_week ===
+                                  dayOfWeek
+                              );
+
+                            if (!day) return null;
+
+                            const saving =
+                              savingAvailabilityDay ===
+                              dayOfWeek;
+
+                            return (
+                              <div
+                                key={day.id}
+                                className="rounded-xl border border-dourado-200/15 bg-bordo-300/30 p-4"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="font-serif text-sm text-creme/80">
+                                      {getWeekdayName(
+                                        day.day_of_week
+                                      )}
+                                    </p>
+
+                                    <p className="mt-1 font-serif text-[10px] text-creme/35">
+                                      {day.active
+                                        ? 'Aberto para agendamentos'
+                                        : 'Fechado'}
+                                    </p>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateAvailabilityLocal(
+                                        day.day_of_week,
+                                        {
+                                          active:
+                                            !day.active,
+                                        }
+                                      )
+                                    }
+                                    className={`relative w-11 h-6 rounded-full border transition ${
+                                      day.active
+                                        ? 'bg-dourado-200/20 border-dourado-200/50'
+                                        : 'bg-bordo-300 border-creme/15'
+                                    }`}
+                                    aria-label={`${
+                                      day.active
+                                        ? 'Desativar'
+                                        : 'Ativar'
+                                    } ${getWeekdayName(
+                                      day.day_of_week
+                                    )}`}
+                                  >
+                                    <span
+                                      className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all ${
+                                        day.active
+                                          ? 'left-6 bg-dourado-200'
+                                          : 'left-1 bg-creme/30'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+
+                                {day.active && (
+                                  <div className="grid grid-cols-2 gap-3 mt-4">
+                                    <FieldLabel label="Início">
+                                      <input
+                                        type="time"
+                                        step="1800"
+                                        value={trimDatabaseTime(
+                                          day.start_time
+                                        )}
+                                        onChange={(
+                                          event
+                                        ) =>
+                                          updateAvailabilityLocal(
+                                            day.day_of_week,
+                                            {
+                                              start_time:
+                                                event
+                                                  .target
+                                                  .value,
+                                            }
+                                          )
+                                        }
+                                        className="AdminInput"
+                                      />
+                                    </FieldLabel>
+
+                                    <FieldLabel label="Fim">
+                                      <input
+                                        type="time"
+                                        step="1800"
+                                        value={trimDatabaseTime(
+                                          day.end_time
+                                        )}
+                                        onChange={(
+                                          event
+                                        ) =>
+                                          updateAvailabilityLocal(
+                                            day.day_of_week,
+                                            {
+                                              end_time:
+                                                event
+                                                  .target
+                                                  .value,
+                                            }
+                                          )
+                                        }
+                                        className="AdminInput"
+                                      />
+                                    </FieldLabel>
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    saveAvailabilityDay(
+                                      day
+                                    )
+                                  }
+                                  disabled={saving}
+                                  className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-dourado-200/20 px-4 py-3 font-serif text-[10px] text-dourado-200/70 disabled:opacity-40"
+                                >
+                                  {saving ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Save className="w-3.5 h-3.5" />
+                                      Salvar{' '}
+                                      {getWeekdayName(
+                                        day.day_of_week
+                                      )}
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </section>
+
                 <Messages
                   error={error}
                   success={success}
@@ -2325,6 +2617,36 @@ export function AdminPanel() {
 /* =========================================================
    COMPONENTES AUXILIARES
 ========================================================= */
+
+function getWeekdayName(
+  dayOfWeek: number
+) {
+  const names: Record<number, string> = {
+    0: 'Domingo',
+    1: 'Segunda',
+    2: 'Terça',
+    3: 'Quarta',
+    4: 'Quinta',
+    5: 'Sexta',
+    6: 'Sábado',
+  };
+
+  return names[dayOfWeek] ?? 'Dia';
+}
+
+function trimDatabaseTime(value: string) {
+  return value?.slice(0, 5) ?? '';
+}
+
+function normalizeTimeForDatabase(
+  value: string
+) {
+  if (value.length === 5) {
+    return `${value}:00`;
+  }
+
+  return value;
+}
 
 function getTodayInSaoPaulo() {
   const parts = new Intl.DateTimeFormat(
