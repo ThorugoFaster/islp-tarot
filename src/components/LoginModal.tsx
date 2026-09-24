@@ -9,7 +9,6 @@ import {
   EyeOff,
   Loader2,
   LockKeyhole,
-  Mail,
   Phone,
   UserRound,
   X,
@@ -30,7 +29,6 @@ export function LoginModal() {
     useState<Screen>('login');
 
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [senha, setSenha] = useState('');
 
@@ -223,9 +221,9 @@ export function LoginModal() {
 
     const cleanUsername =
       username.trim().toLowerCase();
-    const cleanEmail =
-      email.trim().toLowerCase();
-    const cleanPhone = telefone.trim();
+
+    const phoneDigits =
+      telefone.replace(/\D/g, '');
 
     if (!cleanUsername) {
       setErro(
@@ -252,8 +250,19 @@ export function LoginModal() {
       return;
     }
 
-    if (!cleanEmail) {
-      setErro('Digite seu e-mail.');
+    /*
+      Aceita celular brasileiro com DDD:
+      11 dígitos, sendo o primeiro dígito
+      do celular igual a 9.
+      Ex.: (13) 99999-9999
+    */
+    if (
+      phoneDigits.length !== 11 ||
+      phoneDigits[2] !== '9'
+    ) {
+      setErro(
+        'Digite um número de celular válido com DDD.'
+      );
       return;
     }
 
@@ -268,17 +277,60 @@ export function LoginModal() {
     setErro('');
 
     try {
+      /*
+        O usuário não precisa informar e-mail.
+
+        Mantemos o Auth atual do projeto por trás
+        do sistema usando um identificador interno,
+        enquanto o cliente vê somente:
+        usuário + celular + senha.
+      */
+      const internalEmail =
+        `${cleanUsername}@conta.islptarot.local`;
+
+      /*
+        Confere o username antes de tentar criar
+        a conta. O índice UNIQUE do banco continua
+        sendo a proteção definitiva.
+      */
+      const {
+        data: existingProfile,
+        error: usernameCheckError,
+      } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', cleanUsername)
+        .maybeSingle();
+
+      if (usernameCheckError) {
+        console.error(
+          'Erro ao verificar usuário:',
+          usernameCheckError
+        );
+
+        setErro(
+          'Não foi possível verificar o usuário. Tente novamente.'
+        );
+        return;
+      }
+
+      if (existingProfile) {
+        setErro(
+          'Este nome de usuário já está em uso.'
+        );
+        return;
+      }
+
       const { data, error } =
         await supabase.auth.signUp({
-          email: cleanEmail,
+          email: internalEmail,
           password: senha,
 
           options: {
             data: {
               nome: cleanUsername,
               username: cleanUsername,
-              telefone:
-                cleanPhone || null,
+              telefone: phoneDigits,
             },
           },
         });
@@ -299,7 +351,7 @@ export function LoginModal() {
           )
         ) {
           setErro(
-            'Este e-mail já possui uma conta.'
+            'Este nome de usuário já está em uso.'
           );
         } else {
           console.error(
@@ -322,6 +374,12 @@ export function LoginModal() {
         return;
       }
 
+      /*
+        O projeto está configurado para entrar
+        imediatamente após o cadastro.
+        Se por algum motivo o Supabase não devolver
+        sessão, voltamos para o login.
+      */
       if (!data.session) {
         setErro(
           'Conta criada. Entre com seu usuário e senha para continuar.'
@@ -332,23 +390,40 @@ export function LoginModal() {
         return;
       }
 
-      const { error: profileError } =
-        await supabase
-          .from('profiles')
-          .update({
-            nome: cleanUsername,
-            username: cleanUsername,
-            telefone:
-              cleanPhone || null,
-          })
-          .eq('id', data.user.id);
+      /*
+        Primeiro tentamos atualizar o perfil criado
+        pelo trigger do banco.
+      */
+      const {
+        data: updatedProfiles,
+        error: profileError,
+      } = await supabase
+        .from('profiles')
+        .update({
+          nome: cleanUsername,
+          username: cleanUsername,
+          telefone: phoneDigits,
+        })
+        .eq('id', data.user.id)
+        .select('id');
 
       if (profileError) {
         console.error(
           'Erro ao configurar perfil:',
           profileError
         );
+      }
 
+      /*
+        UPDATE sem linhas não gera necessariamente
+        erro no Supabase. Por isso verificamos se
+        alguma linha realmente foi atualizada.
+      */
+      if (
+        profileError ||
+        !updatedProfiles ||
+        updatedProfiles.length === 0
+      ) {
         const { error: insertError } =
           await supabase
             .from('profiles')
@@ -356,8 +431,7 @@ export function LoginModal() {
               id: data.user.id,
               nome: cleanUsername,
               username: cleanUsername,
-              telefone:
-                cleanPhone || null,
+              telefone: phoneDigits,
               role: 'cliente',
             });
 
@@ -378,6 +452,7 @@ export function LoginModal() {
       }
 
       setSenha('');
+      setTelefone('');
       setErro('');
       setOpen(false);
 
@@ -511,20 +586,11 @@ export function LoginModal() {
               />
 
               <TextInput
-                icon={<Mail />}
-                type="email"
-                value={email}
-                onChange={setEmail}
-                placeholder="E-mail"
-                autoComplete="email"
-              />
-
-              <TextInput
                 icon={<Phone />}
                 type="tel"
                 value={telefone}
                 onChange={setTelefone}
-                placeholder="Telefone (opcional)"
+                placeholder="Celular com DDD"
                 autoComplete="tel"
               />
 
@@ -543,8 +609,8 @@ export function LoginModal() {
             </GoldButton>
 
             <p className="mt-5 text-center font-serif text-[11px] leading-relaxed text-creme/35">
-              Seu e-mail e telefone são utilizados apenas
-              para sua conta e sua experiência no site.
+              Seu número será usado apenas para sua conta,
+              contato sobre atendimentos e sua experiência no site.
             </p>
           </form>
         )}
