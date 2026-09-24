@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
+  CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Edit3,
   Gamepad2,
@@ -48,7 +51,28 @@ type ServiceForm = {
 };
 
 type Filter = 'pendente' | 'aprovada' | 'rejeitada';
-type AdminTab = 'avaliacoes' | 'jogos' | 'pedidos';
+type AdminTab = 'avaliacoes' | 'jogos' | 'pedidos' | 'agenda';
+
+type Appointment = {
+  id: number;
+  order_id: number;
+  start_at: string;
+  end_at: string;
+  duration_minutes: number;
+  status:
+    | 'reservado'
+    | 'confirmado'
+    | 'em_atendimento'
+    | 'concluido'
+    | 'cancelado';
+};
+
+type ScheduleBlock = {
+  id: number;
+  start_at: string;
+  end_at: string;
+  reason: string | null;
+};
 
 type OrderItem = {
   id: number;
@@ -104,6 +128,15 @@ export function AdminPanel() {
 
   const [services, setServices] = useState<Service[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [agendaDate, setAgendaDate] = useState(
+    getTodayInSaoPaulo()
+  );
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
+  const [agendaStartTime, setAgendaStartTime] = useState('10:00');
+  const [agendaEndTime, setAgendaEndTime] = useState('10:30');
+  const [agendaReason, setAgendaReason] = useState('');
+  const [savingBlock, setSavingBlock] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState<number | null>(null);
@@ -147,10 +180,17 @@ export function AdminPanel() {
       loadReviews();
     } else if (tab === 'jogos') {
       loadServices();
-    } else {
+    } else if (tab === 'pedidos') {
       loadOrders();
+    } else {
+      loadAgenda();
     }
   }, [open, tab, filter]);
+
+  useEffect(() => {
+    if (!open || tab !== 'agenda') return;
+    loadAgenda();
+  }, [agendaDate]);
 
   useEffect(() => {
     document.body.style.overflow =
@@ -210,6 +250,193 @@ export function AdminPanel() {
     }
 
     setLoading(false);
+  }
+
+  async function loadAgenda() {
+    setLoading(true);
+    setError('');
+
+    const { startIso, endIso } =
+      getSaoPauloDayRange(agendaDate);
+
+    const [
+      appointmentsResult,
+      blocksResult,
+    ] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select(
+          'id, order_id, start_at, end_at, duration_minutes, status'
+        )
+        .gte('start_at', startIso)
+        .lt('start_at', endIso)
+        .neq('status', 'cancelado')
+        .order('start_at', { ascending: true }),
+
+      supabase
+        .from('schedule_blocks')
+        .select(
+          'id, start_at, end_at, reason'
+        )
+        .lt('start_at', endIso)
+        .gt('end_at', startIso)
+        .order('start_at', { ascending: true }),
+    ]);
+
+    if (appointmentsResult.error) {
+      console.error(
+        appointmentsResult.error
+      );
+      setError(
+        'Não foi possível carregar os atendimentos da agenda.'
+      );
+      setAppointments([]);
+    } else {
+      setAppointments(
+        (appointmentsResult.data ??
+          []) as Appointment[]
+      );
+    }
+
+    if (blocksResult.error) {
+      console.error(blocksResult.error);
+      setError(
+        'Não foi possível carregar os bloqueios da agenda.'
+      );
+      setScheduleBlocks([]);
+    } else {
+      setScheduleBlocks(
+        (blocksResult.data ??
+          []) as ScheduleBlock[]
+      );
+    }
+
+    setLoading(false);
+  }
+
+  async function createScheduleBlock() {
+    setError('');
+    setSuccess('');
+
+    if (!agendaStartTime || !agendaEndTime) {
+      setError(
+        'Informe o início e o fim do bloqueio.'
+      );
+      return;
+    }
+
+    if (agendaEndTime <= agendaStartTime) {
+      setError(
+        'O horário final precisa ser depois do horário inicial.'
+      );
+      return;
+    }
+
+    const startAt =
+      saoPauloLocalToIso(
+        agendaDate,
+        agendaStartTime
+      );
+
+    const endAt =
+      saoPauloLocalToIso(
+        agendaDate,
+        agendaEndTime
+      );
+
+    const overlapsAppointment =
+      appointments.some((appointment) => {
+        const appointmentStart =
+          new Date(appointment.start_at).getTime();
+        const appointmentEnd =
+          new Date(appointment.end_at).getTime();
+
+        return (
+          new Date(startAt).getTime() <
+            appointmentEnd &&
+          new Date(endAt).getTime() >
+            appointmentStart
+        );
+      });
+
+    if (overlapsAppointment) {
+      setError(
+        'Esse período já possui um atendimento reservado ou confirmado.'
+      );
+      return;
+    }
+
+    setSavingBlock(true);
+
+    const { error } = await supabase
+      .from('schedule_blocks')
+      .insert({
+        start_at: startAt,
+        end_at: endAt,
+        reason:
+          agendaReason.trim() ||
+          'Indisponível',
+      });
+
+    if (error) {
+      console.error(error);
+      setError(
+        'Não foi possível bloquear esse horário.'
+      );
+      setSavingBlock(false);
+      return;
+    }
+
+    setAgendaReason('');
+    setSuccess(
+      'Horário bloqueado. Ele não aparecerá mais para clientes ✦'
+    );
+
+    await loadAgenda();
+    setSavingBlock(false);
+  }
+
+  async function deleteScheduleBlock(
+    block: ScheduleBlock
+  ) {
+    const confirmed = window.confirm(
+      'Liberar este período novamente para agendamentos?'
+    );
+
+    if (!confirmed) return;
+
+    setActionId(block.id);
+    setError('');
+    setSuccess('');
+
+    const { error } = await supabase
+      .from('schedule_blocks')
+      .delete()
+      .eq('id', block.id);
+
+    if (error) {
+      console.error(error);
+      setError(
+        'Não foi possível liberar esse horário.'
+      );
+      setActionId(null);
+      return;
+    }
+
+    setSuccess(
+      'Horário liberado novamente ✦'
+    );
+
+    await loadAgenda();
+    setActionId(null);
+  }
+
+  function changeAgendaDay(days: number) {
+    setAgendaDate(
+      addDaysToDateString(agendaDate, days)
+    );
+    setError('');
+    setSuccess('');
   }
 
   async function loadOrders() {
@@ -748,7 +975,7 @@ export function AdminPanel() {
             </section>
 
             {/* ABAS */}
-            <div className="grid grid-cols-3 gap-2 mt-7">
+            <div className="grid grid-cols-4 gap-2 mt-7">
               <button
                 type="button"
                 onClick={() => {
@@ -812,6 +1039,28 @@ export function AdminPanel() {
                     strokeWidth={1.4}
                   />
                   Pedidos
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('agenda');
+                  setError('');
+                  setSuccess('');
+                }}
+                className={`rounded-xl border py-3 font-serif text-[10px] transition ${
+                  tab === 'agenda'
+                    ? 'border-dourado-200/45 bg-dourado-200/10 text-dourado-200'
+                    : 'border-dourado-200/15 text-creme/40'
+                }`}
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  <CalendarDays
+                    className="w-4 h-4"
+                    strokeWidth={1.4}
+                  />
+                  Agenda
                 </span>
               </button>
             </div>
@@ -1544,6 +1793,329 @@ export function AdminPanel() {
               </>
             )}
 
+
+            {/* ============================
+                AGENDA
+            ============================ */}
+
+            {tab === 'agenda' && (
+              <>
+                <div className="flex items-end justify-between mt-9 mb-5">
+                  <div>
+                    <p className="font-serif text-[10px] tracking-[0.22em] text-dourado-200/45 uppercase">
+                      Gerenciamento
+                    </p>
+
+                    <h2 className="font-serif text-2xl text-creme/90 mt-1">
+                      Agenda
+                    </h2>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={loadAgenda}
+                    disabled={loading}
+                    className="w-9 h-9 rounded-full border border-dourado-200/20 flex items-center justify-center text-dourado-200/60 disabled:opacity-40"
+                    aria-label="Atualizar agenda"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 ${
+                        loading ? 'animate-spin' : ''
+                      }`}
+                      strokeWidth={1.4}
+                    />
+                  </button>
+                </div>
+
+                <div className="rounded-2xl border border-dourado-200/20 bg-bordo-200/45 p-4">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        changeAgendaDay(-1)
+                      }
+                      className="w-10 h-10 shrink-0 rounded-full border border-dourado-200/20 flex items-center justify-center text-dourado-200/65"
+                      aria-label="Dia anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <input
+                      type="date"
+                      value={agendaDate}
+                      onChange={(event) =>
+                        setAgendaDate(
+                          event.target.value
+                        )
+                      }
+                      className="AdminInput flex-1 text-center"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        changeAgendaDay(1)
+                      }
+                      className="w-10 h-10 shrink-0 rounded-full border border-dourado-200/20 flex items-center justify-center text-dourado-200/65"
+                      aria-label="Próximo dia"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <p className="mt-3 text-center font-serif text-xs text-creme/45">
+                    {formatAgendaDate(agendaDate)}
+                  </p>
+                </div>
+
+                <Messages
+                  error={error}
+                  success={success}
+                />
+
+                <section className="mt-6 rounded-2xl border border-dourado-200/20 bg-bordo-200/35 p-5">
+                  <p className="font-serif text-[10px] tracking-[0.18em] text-dourado-200/50 uppercase">
+                    Bloquear período
+                  </p>
+
+                  <p className="mt-2 font-serif text-xs leading-relaxed text-creme/40">
+                    Use para compromissos, clientes
+                    marcados fora do site ou qualquer
+                    período em que você não poderá
+                    atender.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 mt-5">
+                    <FieldLabel label="Início">
+                      <input
+                        type="time"
+                        step="1800"
+                        value={agendaStartTime}
+                        onChange={(event) =>
+                          setAgendaStartTime(
+                            event.target.value
+                          )
+                        }
+                        className="AdminInput"
+                      />
+                    </FieldLabel>
+
+                    <FieldLabel label="Fim">
+                      <input
+                        type="time"
+                        step="1800"
+                        value={agendaEndTime}
+                        onChange={(event) =>
+                          setAgendaEndTime(
+                            event.target.value
+                          )
+                        }
+                        className="AdminInput"
+                      />
+                    </FieldLabel>
+                  </div>
+
+                  <div className="mt-4">
+                    <FieldLabel label="Motivo">
+                      <input
+                        type="text"
+                        value={agendaReason}
+                        onChange={(event) =>
+                          setAgendaReason(
+                            event.target.value
+                          )
+                        }
+                        placeholder="Ex: Cliente particular"
+                        className="AdminInput"
+                      />
+                    </FieldLabel>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={createScheduleBlock}
+                    disabled={savingBlock}
+                    className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl border border-dourado-200/35 bg-dourado-200/10 px-4 py-3.5 font-serif text-xs text-dourado-200 disabled:opacity-40"
+                  >
+                    {savingBlock ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Clock3 className="w-4 h-4" />
+                        Bloquear horário
+                      </>
+                    )}
+                  </button>
+                </section>
+
+                {loading && <Loading />}
+
+                {!loading && (
+                  <div className="mt-7">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-serif text-lg text-creme/85">
+                        Compromissos do dia
+                      </h3>
+
+                      <span className="font-serif text-[10px] text-creme/30">
+                        {appointments.length +
+                          scheduleBlocks.length}{' '}
+                        registro(s)
+                      </span>
+                    </div>
+
+                    {appointments.length === 0 &&
+                    scheduleBlocks.length === 0 ? (
+                      <div className="py-12 text-center">
+                        <CalendarDays
+                          className="w-7 h-7 mx-auto text-dourado-200/25"
+                          strokeWidth={1.3}
+                        />
+
+                        <p className="mt-4 font-serif text-sm text-creme/40">
+                          Nenhum compromisso neste dia.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3 mt-5">
+                        {[
+                          ...appointments.map(
+                            (appointment) => ({
+                              kind:
+                                'appointment' as const,
+                              start:
+                                appointment.start_at,
+                              item: appointment,
+                            })
+                          ),
+                          ...scheduleBlocks.map(
+                            (block) => ({
+                              kind:
+                                'block' as const,
+                              start: block.start_at,
+                              item: block,
+                            })
+                          ),
+                        ]
+                          .sort(
+                            (a, b) =>
+                              new Date(
+                                a.start
+                              ).getTime() -
+                              new Date(
+                                b.start
+                              ).getTime()
+                          )
+                          .map((entry) => {
+                            if (
+                              entry.kind ===
+                              'appointment'
+                            ) {
+                              const appointment =
+                                entry.item;
+
+                              return (
+                                <article
+                                  key={`appointment-${appointment.id}`}
+                                  className="rounded-2xl border border-dourado-200/25 bg-dourado-200/5 p-4"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                      <p className="font-serif text-lg text-creme/90">
+                                        {formatAgendaTime(
+                                          appointment.start_at
+                                        )}{' '}
+                                        —{' '}
+                                        {formatAgendaTime(
+                                          appointment.end_at
+                                        )}
+                                      </p>
+
+                                      <p className="mt-1 font-serif text-[10px] text-dourado-200/55 uppercase">
+                                        Pedido #
+                                        {
+                                          appointment.order_id
+                                        }
+                                      </p>
+                                    </div>
+
+                                    <span className="rounded-full border border-dourado-200/20 px-2.5 py-1 font-serif text-[9px] text-dourado-200/70 uppercase">
+                                      {appointment.status ===
+                                      'reservado'
+                                        ? 'Aguardando'
+                                        : appointment.status ===
+                                            'confirmado'
+                                          ? 'Confirmado'
+                                          : appointment.status}
+                                    </span>
+                                  </div>
+
+                                  <p className="mt-3 font-serif text-xs text-creme/40">
+                                    Duração:{' '}
+                                    {formatDuration(
+                                      appointment.duration_minutes
+                                    )}
+                                  </p>
+                                </article>
+                              );
+                            }
+
+                            const block =
+                              entry.item;
+
+                            return (
+                              <article
+                                key={`block-${block.id}`}
+                                className="rounded-2xl border border-red-300/15 bg-bordo-200/45 p-4"
+                              >
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <p className="font-serif text-lg text-creme/80">
+                                      {formatAgendaTime(
+                                        block.start_at
+                                      )}{' '}
+                                      —{' '}
+                                      {formatAgendaTime(
+                                        block.end_at
+                                      )}
+                                    </p>
+
+                                    <p className="mt-1 font-serif text-xs text-creme/45">
+                                      {block.reason ||
+                                        'Indisponível'}
+                                    </p>
+                                  </div>
+
+                                  <span className="rounded-full border border-red-300/15 px-2.5 py-1 font-serif text-[9px] text-red-300/60 uppercase">
+                                    Bloqueado
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  disabled={
+                                    actionId ===
+                                    block.id
+                                  }
+                                  onClick={() =>
+                                    deleteScheduleBlock(
+                                      block
+                                    )
+                                  }
+                                  className="mt-4 w-full rounded-xl border border-dourado-200/15 px-4 py-3 font-serif text-xs text-creme/55 disabled:opacity-40"
+                                >
+                                  Liberar horário
+                                </button>
+                              </article>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
           </main>
         </div>
       </div>
@@ -1753,6 +2325,108 @@ export function AdminPanel() {
 /* =========================================================
    COMPONENTES AUXILIARES
 ========================================================= */
+
+function getTodayInSaoPaulo() {
+  const parts = new Intl.DateTimeFormat(
+    'en-CA',
+    {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }
+  ).formatToParts(new Date());
+
+  const year = parts.find(
+    (part) => part.type === 'year'
+  )?.value;
+
+  const month = parts.find(
+    (part) => part.type === 'month'
+  )?.value;
+
+  const day = parts.find(
+    (part) => part.type === 'day'
+  )?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateString(
+  value: string,
+  days: number
+) {
+  const [year, month, day] = value
+    .split('-')
+    .map(Number);
+
+  const date = new Date(
+    Date.UTC(year, month - 1, day)
+  );
+
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function saoPauloLocalToIso(
+  date: string,
+  time: string
+) {
+  /*
+    São Paulo atualmente usa UTC-03:00.
+    O projeto já trabalha com America/Sao_Paulo
+    para exibição e agendamento.
+  */
+  return new Date(
+    `${date}T${time}:00-03:00`
+  ).toISOString();
+}
+
+function getSaoPauloDayRange(date: string) {
+  return {
+    startIso: saoPauloLocalToIso(
+      date,
+      '00:00'
+    ),
+    endIso: saoPauloLocalToIso(
+      addDaysToDateString(date, 1),
+      '00:00'
+    ),
+  };
+}
+
+function formatAgendaDate(value: string) {
+  const [year, month, day] = value
+    .split('-')
+    .map(Number);
+
+  return new Intl.DateTimeFormat(
+    'pt-BR',
+    {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }
+  ).format(
+    new Date(
+      Date.UTC(year, month - 1, day)
+    )
+  );
+}
+
+function formatAgendaTime(value: string) {
+  return new Date(value).toLocaleTimeString(
+    'pt-BR',
+    {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+    }
+  );
+}
 
 function formatOrderDate(value: string | null) {
   if (!value) return '—';
